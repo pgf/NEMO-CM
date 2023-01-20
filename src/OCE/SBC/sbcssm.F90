@@ -69,7 +69,11 @@ CONTAINS
          !                                                ! ---------------------------------------- !
          ssu_m(:,:) = uu(:,:,1,Kbb)
          ssv_m(:,:) = vv(:,:,1,Kbb)
+#if defined CCSMCOUPLED
+         IF( ln_useCT )  THEN    ;   sst_m(:,:) = eos_pt_from_ct( zts(:,:,jp_tem), zts(:,:,jp_sal) )
+#else
          IF( l_useCT )  THEN    ;   sst_m(:,:) = eos_pt_from_ct( zts(:,:,jp_tem), zts(:,:,jp_sal) )
+#endif
          ELSE                   ;   sst_m(:,:) = zts(:,:,jp_tem)
          ENDIF
          sss_m(:,:) = zts(:,:,jp_sal)
@@ -92,7 +96,11 @@ CONTAINS
             zcoef = REAL( nn_fsbc - 1, wp )
             ssu_m(:,:) = zcoef * uu(:,:,1,Kbb)
             ssv_m(:,:) = zcoef * vv(:,:,1,Kbb)
+#if defined CCSMCOUPLED
+            IF( ln_useCT   )  THEN   ;   sst_m(:,:) = zcoef * eos_pt_from_ct( zts(:,:,jp_tem), zts(:,:,jp_sal) )
+#else
             IF( l_useCT   )  THEN   ;   sst_m(:,:) = zcoef * eos_pt_from_ct( zts(:,:,jp_tem), zts(:,:,jp_sal) )
+#endif
             ELSE                    ;   sst_m(:,:) = zcoef * zts(:,:,jp_tem)
             ENDIF
             sss_m(:,:) = zcoef * zts(:,:,jp_sal)
@@ -120,7 +128,11 @@ CONTAINS
          !                                                ! ---------------------------------------- !
          ssu_m(:,:) = ssu_m(:,:) + uu(:,:,1,Kbb)
          ssv_m(:,:) = ssv_m(:,:) + vv(:,:,1,Kbb)
+#if defined CCSMCOUPLED
+         IF( ln_useCT )  THEN     ;   sst_m(:,:) = sst_m(:,:) + eos_pt_from_ct( zts(:,:,jp_tem), zts(:,:,jp_sal) )
+#else
          IF( l_useCT )  THEN     ;   sst_m(:,:) = sst_m(:,:) + eos_pt_from_ct( zts(:,:,jp_tem), zts(:,:,jp_sal) )
+#endif
          ELSE                    ;   sst_m(:,:) = sst_m(:,:) + zts(:,:,jp_tem)
          ENDIF
          sss_m(:,:) = sss_m(:,:) + zts(:,:,jp_sal)
@@ -241,7 +253,11 @@ CONTAINS
          IF(lwp) WRITE(numout,*) '   default initialisation of ss._m arrays'
          ssu_m(:,:) = uu(:,:,1,Kbb)
          ssv_m(:,:) = vv(:,:,1,Kbb)
+#if defined CCSMCOUPLED
+         IF( ln_useCT )  THEN    ;   sst_m(:,:) = eos_pt_from_ct( ts(:,:,1,jp_tem,Kmm), ts(:,:,1,jp_sal,Kmm) )
+#else
          IF( l_useCT )  THEN    ;   sst_m(:,:) = eos_pt_from_ct( ts(:,:,1,jp_tem,Kmm), ts(:,:,1,jp_sal,Kmm) )
+#endif
          ELSE                   ;   sst_m(:,:) = ts(:,:,1,jp_tem,Kmm)
          ENDIF
          sss_m(:,:) = ts  (:,:,1,jp_sal,Kmm)

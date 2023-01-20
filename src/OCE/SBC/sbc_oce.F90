@@ -87,6 +87,9 @@ MODULE sbc_oce
    INTEGER , PUBLIC, PARAMETER ::   jp_abl     = 4        !: Atmospheric boundary layer    formulation
    INTEGER , PUBLIC, PARAMETER ::   jp_purecpl = 5        !: Pure ocean-atmosphere Coupled formulation
    INTEGER , PUBLIC, PARAMETER ::   jp_none    = 6        !: for OCE when doing coupling via SAS module
+#if defined CCSMCOUPLED
+   INTEGER , PUBLIC, PARAMETER ::   jp_cplcesm = 10       !: NCAR CESM ocean-atmosphere Coupled formulation
+#endif
    !
    !!----------------------------------------------------------------------
    !!           component definition

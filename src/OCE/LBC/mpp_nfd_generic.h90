@@ -1,6 +1,8 @@
+#define CAT(x,y) PASTE(x,y)
+#define PASTE(x,y) x ## y
 
-   SUBROUTINE mpp_nfd_/**/PRECISION( ptab, cd_nat, psgn, kfillmode, pfillval, khls, kfld )
-      TYPE(PTR_4d_/**/PRECISION),  DIMENSION(:), INTENT(inout) ::   ptab        ! pointer of arrays on which apply the b.c.
+   SUBROUTINE CAT(mpp_nfd_,PRECISION)( ptab, cd_nat, psgn, kfillmode, pfillval, khls, kfld )
+      TYPE(CAT(PTR_4d_,PRECISION)),  DIMENSION(:), INTENT(inout) ::   ptab        ! pointer of arrays on which apply the b.c.
       CHARACTER(len=1), DIMENSION(:), INTENT(in   ) ::   cd_nat      ! nature of array grid-points
       REAL(PRECISION),  DIMENSION(:), INTENT(in   ) ::   psgn        ! sign used across the north fold boundary
       INTEGER                       , INTENT(in   ) ::   kfillmode   ! filling method for halo over land 
@@ -27,7 +29,7 @@
       REAL(PRECISION), DIMENSION(:,:,:,:,:)  , ALLOCATABLE ::   zbufr  ! buffer, receive and work arrays
       REAL(PRECISION), DIMENSION(:,:,:,:,:)  , ALLOCATABLE ::   znorthloc
       REAL(PRECISION), DIMENSION(:,:,:,:,:,:), ALLOCATABLE ::   znorthglo
-      TYPE(PTR_4D_/**/PRECISION), DIMENSION(:), ALLOCATABLE ::   ztabglo        ! array or pointer of arrays on which apply the b.c.
+      TYPE(CAT(PTR_4D_,PRECISION)), DIMENSION(:), ALLOCATABLE ::   ztabglo        ! array or pointer of arrays on which apply the b.c.
       !!----------------------------------------------------------------------
       !
       ipk = SIZE(ptab(1)%pt4d,3)
@@ -125,7 +127,7 @@
                   zbufs(iib,ij1,jk,jl) = ptab(jf)%pt4d(ji,ij2,jk,jl)
                END DO
                DO ji = Ni_0+1, i0max    ! avoid sending uninitialized values (make sure we don't use it)
-                  zbufs(ji,ij1,jk,jl) = HUGE(0._/**/PRECISION)   ! make sure we don't use it...
+                  zbufs(ji,ij1,jk,jl) = HUGE(CAT(0._,PRECISION))   ! make sure we don't use it...
                END DO
             END DO
          END DO   ;   END DO   ;   END DO
@@ -154,7 +156,7 @@
             IF(           iproc == -1 ) THEN   ! No neighbour (land proc that was suppressed)
                !
                ireq_r(jn) = MPI_REQUEST_NULL                ! no message to be received
-               zbufr(:,:,:,:,jn) = HUGE(0._/**/PRECISION)   ! default: define it and make sure we don't use it...
+               zbufr(:,:,:,:,jn) = HUGE(CAT(0._,PRECISION))   ! default: define it and make sure we don't use it...
                SELECT CASE ( kfillmode )
                CASE ( jpfillnothing )                       ! no filling 
                CASE ( jpfillcopy    )                       ! filling with inner domain values
@@ -300,7 +302,7 @@
                   znorthloc(ji,jj,jk,jl,jf) = ptab(jf)%pt4d(ii2,ij2,jk,jl)
                END DO
                DO ji = Ni_0+1, i0max
-                  znorthloc(ji,jj,jk,jl,jf) = HUGE(0._/**/PRECISION)   ! avoid sending uninitialized values (make sure we don't use it)
+                  znorthloc(ji,jj,jk,jl,jf) = HUGE(CAT(0._,PRECISION))   ! avoid sending uninitialized values (make sure we don't use it)
                END DO
             END DO
          END DO   ;   END DO   ;   END DO
@@ -394,5 +396,5 @@
          !
       ENDIF   ! ln_nnogather
       !
-   END SUBROUTINE mpp_nfd_/**/PRECISION
+   END SUBROUTINE CAT(mpp_nfd_,PRECISION)
 

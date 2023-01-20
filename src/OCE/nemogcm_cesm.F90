@@ -1,5 +1,5 @@
-#if ! defined CCSMCOUPLED
-MODULE nemogcmi_orig
+#if defined CCSMCOUPLED
+MODULE nemogcm
    !!======================================================================
    !!                       ***  MODULE nemogcm   ***
    !! Ocean system   : NEMO GCM (ocean dynamics, on-line tracers, biochemistry and sea-ice)
@@ -75,6 +75,13 @@ MODULE nemogcmi_orig
    USE mppini         ! shared/distributed memory setting (mpp_init routine)
    USE lib_fortran    ! Fortran utilities (allows no signed zero when 'key_nosignedzero' defined)
    USE halo_mng       ! halo manager
+   USE sbccpl_cesm,   ONLY: lk_cesm
+
+   USE shr_sys_mod,   ONLY: shr_sys_abort
+#if defined NUOPC_IN_NEMO
+   USE ESMF
+   use nuopc_shr_methods , only : chkerr
+#endif
 
    IMPLICIT NONE
    PRIVATE
@@ -82,6 +89,13 @@ MODULE nemogcmi_orig
    PUBLIC   nemo_gcm    ! called by model.F90
    PUBLIC   nemo_init   ! needed by AGRIF
    PUBLIC   nemo_alloc  ! needed by TAM
+   PUBLIC   nemo_closefile   ! needed by ocn_comp_mct.F90
+   PUBLIC   cform_aaa        ! needed by ocn_comp_mct.F90
+
+   CHARACTER(lc) :: diri
+   CHARACTER(lc) :: diro
+   CHARACTER(lc),public :: logfile
+   namelist / modelio / diri, diro, logfile
 
    CHARACTER(lc) ::   cform_aaa="( /, 'AAAAAAAA', / ) "     ! flag for output listing
 
@@ -99,154 +113,35 @@ CONTAINS
 
    SUBROUTINE nemo_gcm
       !!----------------------------------------------------------------------
-      !!                     ***  ROUTINE nemo_gcm  ***
+      !!                     ***  DUMMY ROUTINE nemo_gcm  ***
       !!
-      !! ** Purpose :   NEMO solves the primitive equations on an orthogonal
-      !!              curvilinear mesh on the sphere.
-      !!
-      !! ** Method  : - model general initialization
-      !!              - launch the time-stepping (stp routine)
-      !!              - finalize the run by closing files and communications
-      !!
-      !! References : Madec, Delecluse, Imbard, and Levy, 1997:  internal report, IPSL.
-      !!              Madec, 2008, internal report, IPSL.
       !!----------------------------------------------------------------------
-      INTEGER ::   istp   ! time step index
-      REAL(wp)::   zstptiming   ! elapsed time for 1 time step
-      !!----------------------------------------------------------------------
-      !
-#if defined key_agrif
-      CALL Agrif_Init_Grids()      ! AGRIF: set the meshes
-#endif
-      !                            !-----------------------!
-      CALL nemo_init               !==  Initialisations  ==!
-      !                            !-----------------------!
-#if defined key_agrif
-      Kbb_a = Nbb; Kmm_a = Nnn; Krhs_a = Nrhs   ! agrif_oce module copies of time level indices
-      CALL Agrif_Declare_Var       !  "      "   "   "      "  DYN/TRA
-# if defined key_top
-      CALL Agrif_Declare_Var_top   !  "      "   "   "      "  TOP
-# endif
-#endif
-      ! check that all process are still there... If some process have an error,
-      ! they will never enter in step and other processes will wait until the end of the cpu time!
-      CALL mpp_max( 'nemogcm', nstop )
+      write(*,*) 'nemo_gcm: You should not see this with CESM!!'
 
-      IF(lwp) WRITE(numout,cform_aaa)   ! Flag AAAAAAA
-
-      !                            !-----------------------!
-      !                            !==   time stepping   ==!
-      !                            !-----------------------!
-      !
-      !                                               !== set the model time-step  ==!
-      !
-      istp = nit000
-      !
-# if defined key_agrif
-      !                                               !==  AGRIF time-stepping  ==!
-      CALL Agrif_Regrid()
-      !
-      ! Recursive update from highest nested level to lowest:
-      Kbb_a = Nbb; Kmm_a = Nnn; Krhs_a = Nrhs   ! agrif_oce module copies of time level indices
-      CALL Agrif_step_child_adj(Agrif_Update_All)
-      CALL Agrif_step_child_adj(Agrif_Check_parent_bat)
-      !
-      DO WHILE( istp <= nitend .AND. nstop == 0 )
-         !
-#  if defined key_qco   ||   defined key_linssh
-         CALL stp_MLF
-#  else
-         CALL stp
-#  endif
-         istp = istp + 1
-      END DO
-      !
-# else
-      !
-      IF( .NOT.ln_diurnal_only ) THEN                 !==  Standard time-stepping  ==!
-         !
-         DO WHILE( istp <= nitend .AND. nstop == 0 )
-            !
-            ncom_stp = istp
-            IF( ln_timing ) THEN
-               zstptiming = MPI_Wtime()
-               IF ( istp == ( nit000 + 1 ) ) elapsed_time = zstptiming
-               IF ( istp ==         nitend ) elapsed_time = zstptiming - elapsed_time
-            ENDIF
-            !
-#  if defined key_qco   ||   defined key_linssh
-            CALL stp_MLF( istp )
-#  else
-            CALL stp    ( istp )
-#  endif
-            istp = istp + 1
-            !
-            IF( lwp .AND. ln_timing )   WRITE(numtime,*) 'timing step ', istp-1, ' : ', MPI_Wtime() - zstptiming
-            !
-         END DO
-         !
-      ELSE                                            !==  diurnal SST time-steeping only  ==!
-         !
-         DO WHILE( istp <= nitend .AND. nstop == 0 )
-            CALL stp_diurnal( istp )   ! time step only the diurnal SST
-            istp = istp + 1
-         END DO
-         !
-      ENDIF
-      !
-# endif
-      !
-      IF( ln_diaobs   )   CALL dia_obs_wri
-      !
-      IF( ln_icebergs )   CALL icb_end( nitend )
-
-      !                            !------------------------!
-      !                            !==  finalize the run  ==!
-      !                            !------------------------!
-      IF(lwp) WRITE(numout,cform_aaa)        ! Flag AAAAAAA
-      !
-      IF( nstop /= 0 .AND. lwp ) THEN        ! error print
-         WRITE(ctmp1,*) '   ==>>>   nemo_gcm: a total of ', nstop, ' errors have been found'
-         IF( ngrdstop > 0 ) THEN
-            WRITE(ctmp9,'(i2)') ngrdstop
-            WRITE(ctmp2,*) '           E R R O R detected in Agrif grid '//TRIM(ctmp9)
-            WRITE(ctmp3,*) '           Look for "E R R O R" messages in all existing '//TRIM(ctmp9)//'_ocean_output* files'
-            CALL ctl_stop( ' ', ctmp1, ' ', ctmp2, ' ', ctmp3 )
-         ELSE
-            WRITE(ctmp2,*) '           Look for "E R R O R" messages in all existing ocean_output* files'
-            CALL ctl_stop( ' ', ctmp1, ' ', ctmp2 )
-         ENDIF
-      ENDIF
-      !
-      IF( ln_timing )   CALL timing_finalize
-      !
-      CALL nemo_closefile
-      !
-#if defined key_xios
-                                    CALL xios_finalize  ! end mpp communications with xios
-      IF( lk_oasis     )            CALL cpl_finalize   ! end coupling and mpp communications with OASIS
-#else
-      IF    ( lk_oasis ) THEN   ;   CALL cpl_finalize   ! end coupling and mpp communications with OASIS
-      ELSEIF( lk_mpp   ) THEN   ;   CALL mppstop        ! end mpp communications
-      ENDIF
-#endif
-      !
-      IF(lwm) THEN
-         IF( nstop == 0 ) THEN   ;   STOP 0
-         ELSE                    ;   STOP 123
-         ENDIF
-      ENDIF
-      !
    END SUBROUTINE nemo_gcm
 
 
-   SUBROUTINE nemo_init
+   SUBROUTINE nemo_init(ilocal_comm)
       !!----------------------------------------------------------------------
       !!                     ***  ROUTINE nemo_init  ***
       !!
       !! ** Purpose :   initialization of the NEMO GCM
       !!----------------------------------------------------------------------
-      INTEGER ::   ios, ilocal_comm   ! local integers
+      INTEGER ::   ios                ! local integers
+      INTEGER, INTENT(INOUT) ::   ilocal_comm   ! local MPI comm received from CPL driver
+      !
+      INTEGER :: inum          ! tmp Fortran unit number
+      INTEGER :: rcode         ! return status
+      LOGICAL :: exists        ! file existance logical
+      CHARACTER(len=*), PARAMETER :: func = 'nemo_cesm_init'
+      CHARACTER(len=80) :: nmlfile   ! modelio namelist file name
+
+#if defined NUOPC_IN_NEMO
+      type(ESMF_Config) :: config
+      integer :: rc
+      character(*),parameter :: u_FILE_u = &
+       __FILE__
+#endif
       !!
       NAMELIST/namctl/ sn_cfctl, ln_timing, ln_diacfl, nn_isplt, nn_jsplt , nn_ictls,   &
          &                                             nn_ictle, nn_jctls , nn_jctle
@@ -265,6 +160,9 @@ CONTAINS
          IF( lk_oasis ) THEN
             CALL cpl_init( "oceanx", ilocal_comm )                               ! nemo local communicator given by oasis
             CALL xios_initialize( "not used"       , local_comm =ilocal_comm )   ! send nemo communicator to xios
+         ELSEIF ( lk_cesm ) THEN
+            CALL xios_initialize( "not used",local_comm=ilocal_comm )    ! send nemo communicator given by cesm to xios
+
          ELSE
             CALL xios_initialize( "for_xios_mpi_id", return_comm=ilocal_comm )   ! nemo local communicator given by xios
          ENDIF
@@ -317,6 +215,106 @@ CONTAINS
       !
       lwp = (narea == 1) .OR. sn_cfctl%l_oceout    ! control of all listing output print
       !
+      diri = '.'
+      diro = '.'
+      logfile = ''
+
+#if defined NUOPC_IN_NEMO
+      nmlfile = 'nuopc.runconfig'   ! TODO: multi-instance version
+      INQUIRE(FILE=TRIM(nmlfile),EXIST=exists)
+
+      IF (.NOT. exists) THEN
+         ! Fall back to the default ocean.output file
+         IF(lwp) THEN                      ! open listing units
+            !
+            IF( .NOT. lwm )   &            ! alreay opened for narea == 1
+               &            CALL ctl_opn( numout, 'ocean.output', 'REPLACE', 'FORMATTED', 'SEQUENTIAL', -1, -1, .FALSE., narea )
+         ENDIF
+      ELSE
+         ! Open CESM style log file (ocn.log.*)
+         config = ESMF_ConfigCreate(rc=rc)
+         if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+         call ESMF_ConfigLoadFile(config, "nuopc.runconfig", rc=rc)
+         if (chkerr(rc,__LINE__,u_FILE_u)) return
+         
+         call ESMF_ConfigGetAttribute(config,value=diro,label="diro = ", rc=rc)
+         if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+         call ESMF_ConfigGetAttribute(config,value=logfile,label="logfile = ocn.", rc=rc)
+         if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+         IF(lwp) THEN                            ! open listing units
+         !
+            IF (LEN_TRIM(logfile) > 0) THEN
+               numout = get_unit()
+               OPEN(numout,FILE=TRIM(diro)//'/ocn.'//TRIM(logfile),STATUS='REPLACE', &
+                   ACCESS='SEQUENTIAL',FORM='FORMATTED',IOSTAT=rcode)
+               IF (rcode /= 0) THEN
+                  WRITE(*,FMT='(3A,I6)') 'ERROR: opening ',TRIM(logfile),': iostat=',rcode
+                  CALL shr_sys_abort(func//': ERROR opening '//TRIM(logfile) )
+               ENDIF
+            ELSE
+               ! Fall back to the default ocean.output file
+               ! WRITE(numout,FMT='(A)') 'logfile not opened'
+               CALL ctl_opn( numout, 'ocean.output', 'REPLACE', 'FORMATTED', &
+                   'SEQUENTIAL', -1, 6, .FALSE., narea )
+            ENDIF
+         ENDIF
+      ENDIF
+#else
+      nmlfile = 'ocn_modelio.nml'   ! TODO: multi-instance version
+      INQUIRE(FILE=TRIM(nmlfile),EXIST=exists)
+
+      IF (.NOT. exists) THEN
+         ! Fall back to the default ocean.output file
+         IF(lwp) THEN                      ! open listing units
+            !
+            IF( .NOT. lwm )   &            ! alreay opened for narea == 1
+               &            CALL ctl_opn( numout, 'ocean.output', 'REPLACE', 'FORMATTED', 'SEQUENTIAL', -1, -1, .FALSE., narea )
+         ENDIF
+      ELSE
+         ! Open CESM style log file (ocn.log.*)
+         inum = get_unit()
+         rcode = 0
+         !
+         OPEN (inum,FILE=nmlfile,ACTION='READ',IOSTAT=rcode)
+         IF (rcode /= 0) THEN
+            WRITE(*,FMT='(3A,I6)') 'ERROR: opening ',TRIM(nmlfile),': iostat=',rcode
+            CALL shr_sys_abort(func//': ERROR opening '//TRIM(nmlfile) )
+         ENDIF
+         !
+         READ (inum,NML=modelio,IOSTAT=rcode)
+         IF (rcode /= 0) THEN
+            WRITE(*,FMT='(3A,I6)') 'ERROR: reading ',TRIM(nmlfile),': iostat=',rcode
+            CALL shr_sys_abort(func//': ERROR reading '//TRIM(nmlfile) )
+         ENDIF
+         !
+         CLOSE(inum)
+         !
+         IF(lwp) THEN                            ! open listing units
+         !
+            IF (LEN_TRIM(logfile) > 0) THEN
+               IF (sn_cfctl%l_prtctl) THEN
+                 WRITE(logfile,FMT='(A,"_",I4.4)') TRIM(logfile), narea-1
+               ENDIF
+               numout = get_unit()
+               OPEN(numout,FILE=TRIM(diro)//'/'//TRIM(logfile),STATUS='REPLACE', &
+                   ACCESS='SEQUENTIAL',FORM='FORMATTED',IOSTAT=rcode)
+               IF (rcode /= 0) THEN
+                  WRITE(*,FMT='(3A,I6)') 'ERROR: opening ',TRIM(logfile),': iostat=',rcode
+                  CALL shr_sys_abort(func//': ERROR opening '//TRIM(logfile) )
+               ENDIF
+            ELSE
+               ! Fall back to the default ocean.output file
+               ! WRITE(numout,FMT='(A)') 'logfile not opened'
+               CALL ctl_opn( numout, 'ocean.output', 'REPLACE', 'FORMATTED', &
+                   'SEQUENTIAL', -1, 6, .FALSE., narea )
+            ENDIF
+         ENDIF
+      ENDIF
+#endif
+      !
       IF(lwp) THEN                      ! open listing units
          !
          IF( .NOT. lwm )   &            ! alreay opened for narea == 1
@@ -341,6 +339,8 @@ CONTAINS
          WRITE(numout,*) "      (  (           \_/       '-._\      )   )  "
          WRITE(numout,*) "       )  ) jgs                     `    (   (   "
          WRITE(numout,*) "     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ "
+         WRITE(numout,*)
+         WRITE(numout,*) "     NEMO is running in the NCAR CESM framework  "
          WRITE(numout,*)
          !
          WRITE(numout,cform_aaa)    ! Flag AAAAAAA
@@ -541,6 +541,14 @@ CONTAINS
          WRITE(numout,*) '         filename to be written                        cn_domcfg_out = ', TRIM(cn_domcfg_out)
          WRITE(numout,*) '      use file attribute if exists as i/p j-start   ln_use_jattr     = ', ln_use_jattr
       ENDIF
+#if defined key_xios
+      IF(lwp) THEN                  ! print I/O setting
+         WRITE(numout,*)
+         WRITE(numout,*) 'nemo_init  : key_xios in use'
+         WRITE(numout,*) 'Nemo I/O is handled with XIOS 2.5'
+         WRITE(numout,*)
+      ENDIF
+#endif
       !
       IF( 1._wp /= SIGN(1._wp,-0._wp)  )   CALL ctl_stop( 'nemo_ctl: The intrinsec SIGN function follows f2003 standard.',  &
          &                                                'Compile with key_nosignedzero enabled:',   &
@@ -569,12 +577,17 @@ CONTAINS
       IF( lwm.AND.numond  /= -1 )   CLOSE( numond          )   ! oce output namelist
       IF( lwm.AND.numoni  /= -1 )   CLOSE( numoni          )   ! ice output namelist
       IF( numevo_ice      /= -1 )   CLOSE( numevo_ice      )   ! ice variables (temp. evolution)
-      IF( numout          /=  6 )   CLOSE( numout          )   ! standard model output file
       IF( numdct_vol      /= -1 )   CLOSE( numdct_vol      )   ! volume transports
       IF( numdct_heat     /= -1 )   CLOSE( numdct_heat     )   ! heat transports
       IF( numdct_salt     /= -1 )   CLOSE( numdct_salt     )   ! salt transports
       !
-      numout = 6                                     ! redefine numout in case it is used after this point...
+      IF (lwp) write(numout,*) ' '
+      IF (lwp) write(numout,*) '         ******* END OF MODEL RUN *******'
+      IF (lwp) write(numout,*) ' '
+      !
+      IF( numout          /= -1 )   CLOSE( numout          )   ! standard model output file
+      !
+      !numout = 6                                     ! redefine numout in case it is used after this point...
       !
    END SUBROUTINE nemo_closefile
 
@@ -630,5 +643,5 @@ CONTAINS
    END SUBROUTINE nemo_set_cfctl
 
    !!======================================================================
-END MODULE nemogcm_orig
+END MODULE nemogcm
 #endif

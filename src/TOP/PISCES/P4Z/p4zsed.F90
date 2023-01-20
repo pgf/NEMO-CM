@@ -90,16 +90,16 @@ CONTAINS
       zsedcal (:,:) = 0.e0
       zsedc   (:,:) = 0.e0
 
-      ! OA: Warning, the following part is necessary to avoid CFL problems above the sediments
-      ! --------------------------------------------------------------------
-      DO_2D( nn_hls, nn_hls, nn_hls, nn_hls )
-         ikt  = mbkt(ji,jj)
-         zdep = e3t(ji,jj,ikt,Kmm) / xstep
-         zwsbio4(ji,jj) = MIN( 0.99 * zdep, wsbio4(ji,jj,ikt) )
-         zwsbio3(ji,jj) = MIN( 0.99 * zdep, wsbio3(ji,jj,ikt) )
-      END_2D
-
       IF( .NOT.lk_sed ) THEN
+         ! OA: Warning, the following part is necessary to avoid CFL problems above the sediments
+         ! --------------------------------------------------------------------
+         DO_2D( nn_hls, nn_hls, nn_hls, nn_hls )
+            ikt  = mbkt(ji,jj)
+            zdep = e3t(ji,jj,ikt,Kmm) / xstep
+            zwsbio4(ji,jj) = MIN( 0.99 * zdep, wsbio4(ji,jj,ikt) )
+            zwsbio3(ji,jj) = MIN( 0.99 * zdep, wsbio3(ji,jj,ikt) )
+         END_2D
+
          ! Computation of the sediment denitrification proportion: The metamodel from midlleburg (2006) is being used
          ! Computation of the fraction of organic matter that is permanently buried from Dunne's model
          ! -------------------------------------------------------
@@ -118,7 +118,7 @@ CONTAINS
                 !
               zflx = (  tr(ji,jj,ikt,jpgoc,Kbb) * zwsbio4(ji,jj)   &
                 &     + tr(ji,jj,ikt,jppoc,Kbb) * zwsbio3(ji,jj) ) * 1E6
-              zbureff = 0.013 + 0.53 * zflx**2 / ( 7.0 + zflx )**2 * MIN(gdepw(ji,jj,ikt+1,Kmm) / 1000.00, 1.0)
+              zbureff(ji,jj) = 0.013 + 0.53 * zflx**2 / ( 7.0 + zflx )**2
            ENDIF
          END_2D
          !
@@ -149,8 +149,8 @@ CONTAINS
             zcaloss = tr(ji,jj,ikt,jpcal,Kbb) * zwsc
             tr(ji,jj,ikt,jpsil,Krhs) = tr(ji,jj,ikt,jpsil,Krhs) + zsiloss * zrivsil 
             !
-            zfactcal = MAX(-0.1, MIN( excess(ji,jj,ikt), 0.2 ) )
-            zfactcal = 0.3 + 0.7 * MIN( 1., (0.1 + zfactcal) / ( 0.5 - zfactcal ) )
+            zfactcal = MIN( excess(ji,jj,ikt), 0.2 )
+            zfactcal = MIN( 1., 1.3 * ( 0.2 - zfactcal ) / ( 0.4 - zfactcal ) )
             zrivalk  = sedcalfrac * zfactcal
             tr(ji,jj,ikt,jptal,Krhs) =  tr(ji,jj,ikt,jptal,Krhs) + zcaloss * zrivalk * 2.0
             tr(ji,jj,ikt,jpdic,Krhs) =  tr(ji,jj,ikt,jpdic,Krhs) + zcaloss * zrivalk
@@ -226,7 +226,7 @@ CONTAINS
          DO_3D( nn_hls, nn_hls, nn_hls, nn_hls, 1, jpkm1)
             !                      ! Potential nitrogen fixation dependant on temperature and iron
             ztemp = ts(ji,jj,jk,jp_tem,Kmm)
-            zmudia = MAX( 0.,-0.001096*ztemp**2 + 0.057*ztemp -0.637 ) / rno3
+            zmudia = MAX( 0.,-0.001096*ztemp**2 + 0.057*ztemp -0.637 ) * 7.625
             !       Potential nitrogen fixation dependant on temperature and iron
             xdianh4 = tr(ji,jj,jk,jpnh4,Kbb) / ( concnnh4 + tr(ji,jj,jk,jpnh4,Kbb) )
             xdiano3 = tr(ji,jj,jk,jpno3,Kbb) / ( concnno3 + tr(ji,jj,jk,jpno3,Kbb) ) * (1. - xdianh4)
@@ -251,7 +251,7 @@ CONTAINS
             zfact = zlim * rfact2
             ztrfer = biron(ji,jj,jk) / ( concfediaz + biron(ji,jj,jk) )
             ztrpo4(ji,jj,jk) = tr(ji,jj,jk,jppo4,Kbb) / ( 1E-6 + tr(ji,jj,jk,jppo4,Kbb) )
-            ztrdop(ji,jj,jk) = tr(ji,jj,jk,jpdop,Kbb) / ( 10E-6 + tr(ji,jj,jk,jpdop,Kbb) ) * (1. - ztrpo4(ji,jj,jk))
+            ztrdop(ji,jj,jk) = tr(ji,jj,jk,jpdop,Kbb) / ( 1E-6 + tr(ji,jj,jk,jpdop,Kbb) ) * (1. - ztrpo4(ji,jj,jk))
             ztrdp = ztrpo4(ji,jj,jk) + ztrdop(ji,jj,jk)
             nitrpot(ji,jj,jk) =  zmudia * r1_rday * zfact * MIN( ztrfer, ztrdp ) * zlight(ji,jj,jk)
          END_3D
@@ -288,7 +288,7 @@ CONTAINS
             tr(ji,jj,jk,jpdon,Krhs) = tr(ji,jj,jk,jpdon,Krhs) + zfact * 1.0 / 3.0
             tr(ji,jj,jk,jpdoc,Krhs) = tr(ji,jj,jk,jpdoc,Krhs) + zfact * 1.0 / 3.0
             tr(ji,jj,jk,jpdop,Krhs) = tr(ji,jj,jk,jpdop,Krhs) + 16.0 / 46.0 * zfact / 3.0  &
-            &                     - 16.0 / 46.0 * zfact  * 2.0 / 3.0  * ztrdop(ji,jj,jk)   &
+            &                     - 16.0 / 46.0 * zfact * ztrdop(ji,jj,jk)   &
             &                     / (ztrpo4(ji,jj,jk) + ztrdop(ji,jj,jk) + rtrn)
             tr(ji,jj,jk,jppoc,Krhs) = tr(ji,jj,jk,jppoc,Krhs) + zfact * 1.0 / 3.0 * 2.0 / 3.0
             tr(ji,jj,jk,jppon,Krhs) = tr(ji,jj,jk,jppon,Krhs) + zfact * 1.0 / 3.0 * 2.0 /3.0
@@ -363,7 +363,7 @@ CONTAINS
       r1_rday  = 1. / rday
       !
       sedsilfrac = 0.03     ! percentage of silica loss in the sediments
-      sedcalfrac = 0.99     ! percentage of calcite loss in the sediments
+      sedcalfrac = 0.6      ! percentage of calcite loss in the sediments
       !
       lk_sed = ln_sediment .AND. ln_sed_2way 
       !

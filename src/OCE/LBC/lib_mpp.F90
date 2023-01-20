@@ -57,11 +57,18 @@ MODULE lib_mpp
 #if ! defined key_mpi_off
    USE MPI
 #endif
+#if defined CCSMCOUPLED
+   USE shr_sys_mod,   ONLY: shr_sys_abort
+   USE shr_file_mod,  ONLY: shr_file_maxUnit
+#endif
 
    IMPLICIT NONE
    PRIVATE
    !
    PUBLIC   ctl_stop, ctl_warn, ctl_opn, ctl_nam, load_nml
+#if defined CCSMCOUPLED
+   PUBLIC   get_unit
+#endif
    PUBLIC   mpp_start, mppstop, mppsync, mpp_comm_free
    PUBLIC   mpp_ini_northgather
    PUBLIC   mpp_min, mpp_max, mpp_sum, mpp_minloc, mpp_maxloc
@@ -983,10 +990,18 @@ CONTAINS
       !
 #if ! defined key_mpi_off
       IF(ll_abort) THEN
+#if defined CCSMCOUPLED
+         CALL shr_sys_abort('NEMO: mppstop')
+#else
          CALL mpi_abort( MPI_COMM_WORLD, 123, info )
+#endif
       ELSE
          CALL mppsync
+#if defined CCSMCOUPLED
+         CALL shr_sys_abort('NEMO: mppstop')
+#else
          CALL mpi_finalize( info )
+#endif
       ENDIF
 #endif
       IF( ll_abort ) STOP 123
@@ -1237,7 +1252,7 @@ CONTAINS
                 + aimag(ydda(ji)) + aimag(yddb(ji))
 
          ! The result is zt1 + zt2, after normalization.
-         yddb(ji) = cmplx ( zt1 + zt2, zt2 - ((zt1 + zt2) - zt1), dp )
+         yddb(ji) = cmplx ( zt1 + zt2, zt2 - ((zt1 + zt2) - zt1),wp )
       END DO
       !
    END SUBROUTINE DDPDD_MPI
@@ -1646,7 +1661,13 @@ CONTAINS
       LOGICAL :: llopn
       !!----------------------------------------------------------------------
       !
+#if defined CCSMCOUPLED
+      ! Choose a unit bigger than CESM shr_file_maxUnit for safety
+      get_unit = shr_file_maxUnit + 1
+      if (get_unit>998) get_unit = 100
+#else
       get_unit = 15   ! choose a unit that is big enough then it is not already used in NEMO
+#endif
       llopn = .TRUE.
       DO WHILE( (get_unit < 9999) .AND. llopn )
          get_unit = get_unit + 1

@@ -234,6 +234,7 @@ CONTAINS
       !!                     ***  ROUTINE trc_ini_state ***
       !! ** Purpose :          Initialisation of passive tracer concentration 
       !!----------------------------------------------------------------------
+      USE zpshde          ! partial step: hor. derivative   (zps_hde routine)
       USE trcrst          ! passive tracers restart
       USE trcdta          ! initialisation from files
       !

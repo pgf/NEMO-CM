@@ -102,6 +102,10 @@ CONTAINS
       REAL(wp), DIMENSION(jpi,jpj) ::   zrho0_1    ! MLD rho = rho(surf) = 0.01
       REAL(wp), DIMENSION(jpi,jpj) ::   zmaxdzT    ! max of dT/dz
       REAL(wp), DIMENSION(jpi,jpj) ::   zdelr      ! delta rho equivalent to deltaT = 0.2
+#if defined CCSMCOUPLED
+      REAL(wp)                     ::   zrho125 = 0.125_wp    ! density criterion for mixed layer depth
+      REAL(wp), DIMENSION(jpi,jpj) ::   zrho0_125  ! MLD rho = rho(surf) = 0.125
+#endif
       !!----------------------------------------------------------------------
       IF( ln_timing )   CALL timing_start('dia_hth')
 
@@ -144,6 +148,9 @@ CONTAINS
             IF( nla10 > 1 ) THEN 
                DO_2D( 1, 1, 1, 1 )
                   zztmp = gdepw(ji,jj,mbkt(ji,jj)+1,Kmm) 
+#if defined CCSMCOUPLED
+                     zrho0_125(ji,jj) = zztmp
+#endif
                   zrho0_3(ji,jj) = zztmp
                   zrho0_1(ji,jj) = zztmp
                END_2D
@@ -171,6 +178,9 @@ CONTAINS
          
                IF( nla10 > 1 ) THEN 
                   zztmp = rhop(ji,jj,jk) - rhop(ji,jj,1)                       ! delta rho(1)
+#if defined CCSMCOUPLED
+                  IF( zztmp > zrho125 ) zrho0_125(ji,jj) = zzdep              ! > 0.125
+#endif
                   IF( zztmp > zrho3 )   zrho0_3(ji,jj) = zzdep                ! > 0.03
                   IF( zztmp > zrho1 )   zrho0_1(ji,jj) = zzdep                ! > 0.01
                ENDIF
@@ -178,6 +188,9 @@ CONTAINS
          
             CALL iom_put( 'mlddzt', hth )            ! depth of the thermocline
             IF( nla10 > 1 ) THEN 
+#if defined CCSMCOUPLED
+               CALL iom_put( "mldr0_125", zrho0_125 )   ! MLD delta rho(surf) = 0.125
+#endif
                CALL iom_put( 'mldr0_3', zrho0_3 )   ! MLD delta rho(surf) = 0.03
                CALL iom_put( 'mldr0_1', zrho0_1 )   ! MLD delta rho(surf) = 0.01
             ENDIF

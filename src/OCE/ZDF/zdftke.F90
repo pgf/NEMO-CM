@@ -60,6 +60,9 @@ MODULE zdftke
    USE prtctl         ! Print control
    USE lib_fortran    ! Fortran utilities (allows no signed zero when 'key_nosignedzero' defined)
    USE sbcwave        ! Surface boundary waves
+#if defined CCSMCOUPLED
+   USE wrk_nemo       ! work arrays
+#endif
 
    IMPLICIT NONE
    PRIVATE
@@ -219,9 +222,16 @@ CONTAINS
       REAL(wp), DIMENSION(A2D(nn_hls))     ::   zice_fra, zhlc, zus3, zWlc2
       REAL(wp), DIMENSION(A2D(nn_hls),jpk) ::   zpelc, zdiag, zd_up, zd_lw
       REAL(wp), DIMENSION(:,:,:), ALLOCATABLE ::   ztmp ! for diags
-      REAL(wp) :: zdiv
+#if defined CCSMCOUPLED
+      REAL(wp), POINTER, DIMENSION(:,:  ) :: zfri
+#endif
       !!--------------------------------------------------------------------
       !
+#if defined CCSMCOUPLED
+      CALL wrk_alloc( jpi,jpj, zfri )
+      zfri(:,:) = fr_i(:,:)
+      fr_i = 0.0_wp
+#endif
       zbbrau  = rn_ebb / rho0       ! Local constant initialisation
       zbbirau = 3.75_wp / rho0
       zfact1  = -.5_wp * rn_Dt
@@ -371,16 +381,7 @@ CONTAINS
             IF (rn2b(ji,jj,jk) <= 0.0_wp) then
                 zri = 0.0_wp
             ELSE
-                ! This logic is to avoid divide-by-zero errors which can occur for single-precision
-                ! The actual value you choose for the denominator instead of zero doesn't really
-                ! matter, as long as it is very small and so triggers the same logic below with the
-                ! inverse Prandtl number
-                zdiv = p_sh2(ji,jj,jk) + rn_bshear
-                IF (zdiv == 0.0_wp) THEN
-                   zri = rn2b(ji,jj,jk) * p_avm(ji,jj,jk) / rn_bshear
-                ELSE
-                   zri = rn2b(ji,jj,jk) * p_avm(ji,jj,jk) / zdiv
-                ENDIF
+                zri = rn2b(ji,jj,jk) * p_avm(ji,jj,jk) / ( p_sh2(ji,jj,jk) + rn_bshear )
             ENDIF
             !                             ! inverse of Prandtl number
             apdlr(ji,jj,jk) = MAX(  0.1_wp,  ri_cri / MAX( ri_cri , zri )  )
@@ -503,6 +504,10 @@ CONTAINS
          END_3D
       ENDIF
       !
+#if defined CCSMCOUPLED
+      fr_i(:,:) = zfri(:,:)
+      CALL wrk_dealloc( jpi,jpj, zfri )
+#endif
    END SUBROUTINE tke_tke
 
 

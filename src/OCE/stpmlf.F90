@@ -354,6 +354,9 @@ CONTAINS
                             CALL tra_ldf    ( kstp, Nbb, Nnn, ts, Nrhs )  ! lateral mixing
 
                             CALL tra_zdf    ( kstp, Nbb, Nnn, Nrhs, ts, Naa  )  ! vertical mixing and after tracer fields
+#if defined CCSMCOUPLED
+         IF( lk_cesm   )    CALL ice_formation ( kstp, Naa )  ! freezing/melting potential
+#endif
          IF( ln_zdfnpc  )   CALL tra_npc    ( kstp,      Nnn, Nrhs, ts, Naa  )  ! update after fields by non-penetrative convection
       END DO
       IF( ln_tile ) CALL dom_tile_stop
@@ -440,6 +443,11 @@ CONTAINS
       !<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
       IF( lk_oasis .AND. nstop == 0 )   CALL sbc_cpl_snd( kstp, Nbb, Nnn )     ! coupled mode : field exchanges
       !
+#if defined CCSMCOUPLED
+      IF( lk_cesm          )   CALL ice_flx_to_coupler( kstp, Nnn )
+      !
+      ! XIOS finalisation in cesm is done in ocn_final_mct
+#else
 #if defined key_xios
       !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
       ! Finalize contextes if end of simulation or error detected
@@ -448,6 +456,7 @@ CONTAINS
                       CALL iom_context_finalize(      cxios_context          ) ! needed for XIOS+AGRIF
          IF( ln_crs ) CALL iom_context_finalize( trim(cxios_context)//"_crs" ) !
       ENDIF
+#endif
 #endif
       !
       IF( l_1st_euler ) THEN         ! recover Leap-frog timestep
@@ -546,8 +555,8 @@ CONTAINS
             CALL Agrif_dyn( kt )
 # endif
       !                                        ! local domain boundaries  (T-point, unchanged sign)
-      CALL lbc_lnk( 'finalize_lbc', puu(:,:,:,       Kaa), 'U', -1._wp, pvv(:,:,:       ,Kaa), 'V', -1._wp   &
-                       &          , pts(:,:,:,jp_tem,Kaa), 'T',  1._wp, pts(:,:,:,jp_sal,Kaa), 'T',  1._wp )
+      CALL lbc_lnk( 'finalize_lbc', puu(:,:,:,       Kaa), 'U', -1., pvv(:,:,:       ,Kaa), 'V', -1.   &
+                       &          , pts(:,:,:,jp_tem,Kaa), 'T',  1., pts(:,:,:,jp_sal,Kaa), 'T',  1. )
       !
       ! lbc_lnk needed for zdf_sh2 when using nn_hls = 2, moved here to allow tiling in zdf_phy
       IF( nn_hls == 2 .AND. l_zdfsh2 ) CALL lbc_lnk( 'stp', avm_k, 'W', 1.0_wp )

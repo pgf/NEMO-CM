@@ -21,6 +21,11 @@ MODULE step_oce
    USE sbcwave         ! Wave intialisation
    USE tide_mod        ! tides
 
+#if defined CCSMCOUPLED
+   USE sbccpl_cesm      ! surface boundary condition: NCAR CESM coupled formulation
+   USE qflxice          ! sea ice freezing/melting potential computation
+#endif
+
    USE bdy_oce  , ONLY : ln_bdy
    USE bdydta          ! open boundary condition data     (bdy_dta routine)
    USE bdytra          ! bdy cond. for tracers            (bdy_tra routine)

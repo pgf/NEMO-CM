@@ -135,6 +135,11 @@ CONTAINS
             zgdept(:,:,jk) = gdept(:,:,jk,Kmm)
          END DO
          CALL eos( ztsn, zrhd, zgdept)                       ! now in situ density using initial salinity
+#if defined CCSMCOUPLED
+         zrhd = (zrhd + 1.0_wp)*rho0       ! from gamma back to density
+         zrhd(:,:,jpk) = 0._wp
+         CALL iom_put( 'rhositu', zrhd )   ! save in situ density
+#endif
          !
          zbotpres(:,:) = 0._wp                        ! no atmospheric surface pressure, levitating sea-ice
          DO jk = 1, jpkm1
@@ -319,7 +324,7 @@ CONTAINS
       REAL(wp), DIMENSION(A2D(nn_hls))  :: z2d
       !!----------------------------------------------------------------------
 
-      z2d(:,:) = 0._wp
+      z2d(:,:) = puflx(:,:,1)
       DO_3D( 0, 0, 0, 0, 1, jpkm1 )
          z2d(ji,jj) = z2d(ji,jj) + puflx(ji,jj,jk)
       END_3D

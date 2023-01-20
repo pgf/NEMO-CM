@@ -35,6 +35,9 @@ MODULE mppini
    PUBLIC   mpp_getnum     ! called by prtctl
    PUBLIC   mpp_basesplit  ! called by prtctl
    PUBLIC   mpp_is_ocean   ! called by prtctl
+#if defined CCSMCOUPLED
+   PRIVATE  mpp_getnum_lnd ! called by prtctl
+#endif
 
    INTEGER ::   numbot = -1   ! 'bottom_level' local logical unit
    INTEGER ::   numbdy = -1   ! 'bdy_msk'      local logical unit
@@ -129,6 +132,9 @@ CONTAINS
       !!----------------------------------------------------------------------
       INTEGER ::   ji, jj, jn, jp, jh
       INTEGER ::   ii, ij, ii2, ij2
+#if defined CCSMCOUPLED
+      INTEGER ::   iiL, ijL
+#endif
       INTEGER ::   inijmin   ! number of oce subdomains
       INTEGER ::   inum, inum0
       INTEGER ::   ifreq, il1, imil, il2, ijm1
@@ -146,6 +152,10 @@ CONTAINS
       LOGICAL ::   ln_listonly
       LOGICAL, ALLOCATABLE, DIMENSION(:,:  ) ::   llisOce  ! is not land-domain only?
       LOGICAL, ALLOCATABLE, DIMENSION(:,:,:) ::   llnei    ! are neighbourgs existing?
+#if defined CCSMCOUPLED
+      INTEGER, ALLOCATABLE, DIMENSION(:    ) ::   iinL, ijnL
+      INTEGER :: jpnijL, jpiL, jpjL
+#endif
       NAMELIST/nambdy/ ln_bdy, nb_bdy, ln_coords_file, cn_coords_file,           &
            &             ln_mask_file, cn_mask_file, cn_dyn2d, nn_dyn2d_dta,     &
            &             cn_dyn3d, nn_dyn3d_dta, cn_tra, nn_tra_dta,             &
@@ -322,6 +332,33 @@ CONTAINS
       !
       CALL mpp_basesplit( jpiglo, jpjglo, nn_hls, jpni, jpnj, jpimax, jpjmax, iimppt, ijmppt, ijpi, ijpj )
       CALL mpp_getnum( llisOce, ipproc, iin, ijn )
+#if defined CCSMCOUPLED
+      ! save land subdomain position
+      IF( jpni*jpnj > inijmin ) THEN
+        jpnijL = jpni*jpnj - inijmin
+        IF( narea <= jpnijL ) THEN
+           ALLOCATE( iinL(jpnijL), ijnL(jpnijL) )
+           CALL mpp_getnum_lnd(llisOce, iinL, ijnL)
+           iiL    = iinL(narea)
+           ijL    = ijnL(narea)
+           jpiL   = ijpi(iiL,ijL)
+           jpjL   = ijpj(iiL,ijL)
+           nimppL = iimppt(iiL,ijL)
+           njmppL = ijmppt(iiL,ijL)
+           Nis0L  =   1+nn_hls
+           Njs0L  =   1+nn_hls
+           Nie0L  = jpiL-nn_hls
+           Nje0L  = jpjL-nn_hls
+        ELSE
+          nimppL = 0
+          njmppL = 0
+          Nis0L  = 0
+          Njs0L  = 0
+          Nie0L  = 0
+          Nje0L  = 0
+        ENDIF
+      ENDIF
+#endif
       !
       ii = iin(narea)
       ij = ijn(narea)
@@ -1142,6 +1179,51 @@ CONTAINS
       !
    END SUBROUTINE mpp_getnum
 
+#if defined CCSMCOUPLED
+   SUBROUTINE mpp_getnum_lnd ( ldIsOce, kipos, kjpos )
+      !!----------------------------------------------------------------------
+      !!                  ***  ROUTINE mpp_getnum_lnd  ***
+      !!
+      !! ** Purpose : give the location of the suppressed land subdomains 
+      !!
+      !! ** Method  : start from bottom left. First skip already used land
+      !subdomain, 
+      !!              and provide the location of remaining land subdomains.
+      !!----------------------------------------------------------------------
+      LOGICAL, DIMENSION(:,:), INTENT(in   ) ::   ldIsOce     ! F if land process
+!      number (-1 if not existing, starting at 0)
+      INTEGER, DIMENSION(  :), INTENT(  out) ::   kipos       ! i-position of the subdomain (from 1 to jpni)
+      INTEGER, DIMENSION(  :), INTENT(  out) ::   kjpos       ! j-position of the subdomain (from 1 to jpnj)
+      !
+      INTEGER :: ii, ij, jarea, iarea0
+      INTEGER :: icont, i2del , ini, inj, inij
+      INTEGER :: ndlsize, exlsize, ndosize
+      !!----------------------------------------------------------------------
+      !
+      ndosize = COUNT( ldIsOce )   ! number of oce subdomains
+      ndlsize = jpni*jpnj - mppsize
+      exlsize = mppsize - ndosize
+      ini = SIZE(ldIsOce, dim = 1)
+      inj = SIZE(ldIsOce, dim = 2)
+      ! compute the position of land subdomains
+      icont = -1
+      i2del = exlsize
+      DO jarea = 1, ini*inj
+         iarea0 = jarea - 1
+         ii = 1 + MOD(iarea0,ini)
+         ij = 1 +     iarea0/ini
+         IF( .not. ldIsOce(ii,ij) ) THEN
+            if (i2del < 1) then
+               icont = icont + 1
+               kipos(icont+1) = ii
+               kjpos(icont+1) = ij
+            else
+               i2del = i2del - 1
+            end if
+         ENDIF
+      END DO
+   END SUBROUTINE mpp_getnum_lnd
+#endif
 
    SUBROUTINE init_excl_landpt
       !!----------------------------------------------------------------------

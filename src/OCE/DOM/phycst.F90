@@ -16,6 +16,9 @@ MODULE phycst
    !!----------------------------------------------------------------------
    USE par_oce          ! ocean parameters
    USE in_out_manager   ! I/O manager
+#if defined CCSMCOUPLED
+   USE shr_const_mod    ! constants from NCAR CESM shared code
+#endif
 
    IMPLICIT NONE
    PRIVATE
@@ -40,22 +43,38 @@ MODULE phycst
 
    REAL(wp), PUBLIC ::   rho0                        !: volumic mass of reference     [kg/m3]
    REAL(wp), PUBLIC ::   r1_rho0                     !: = 1. / rho0                   [m3/kg]
+#if defined CCSMCOUPLED
+   REAL(wp), PUBLIC ::   raufw    = SHR_CONST_RHOFW !: density of freshwater (lg/m3)
+   REAL(wp), PUBLIC ::   rcp      = SHR_CONST_CPSW  !: ocean specific heat (changes also in eosbn2.f90)
+#else
    REAL(wp), PUBLIC ::   rcp                         !: ocean specific heat           [J/Kelvin]
+#endif
    REAL(wp), PUBLIC ::   r1_rcp                      !: = 1. / rcp                    [Kelvin/J]
    REAL(wp), PUBLIC ::   rho0_rcp                    !: = rho0 * rcp
    REAL(wp), PUBLIC ::   r1_rho0_rcp                 !: = 1. / ( rho0 * rcp )
 
    REAL(wp), PUBLIC ::   emic     =    0.97_wp       !: emissivity of snow or ice (not used?)
-
+#if defined CCSMCOUPLED
+   REAL(wp), PUBLIC ::   sice    = SHR_CONST_ICE_REF_SAL  !: reference salinity of ice (psu)
+#else
    REAL(wp), PUBLIC ::   sice     =    6.0_wp        !: salinity of ice (for pisces)          [psu]
+#endif
    REAL(wp), PUBLIC ::   soce     =   34.7_wp        !: salinity of sea (for pisces and isf)  [psu]
+#if defined CCSMCOUPLED
+   REAL(wp), PUBLIC ::   rLevap  = SHR_CONST_LATVAP       !: latent heat of evaporation (water)
+#else
    REAL(wp), PUBLIC ::   rLevap   =    2.5e+6_wp     !: latent heat of evaporation (water)
+#endif
    REAL(wp), PUBLIC ::   vkarmn   =    0.4_wp        !: von Karman constant
    REAL(wp), PUBLIC ::   vkarmn2  =    0.4_wp*0.4_wp !: square of von Karman constant
    REAL(wp), PUBLIC ::   stefan   =    5.67e-8_wp    !: Stefan-Boltzmann constant
 
    REAL(wp), PUBLIC ::   rhos     =  330._wp         !: volumic mass of snow                                  [kg/m3]
+#if defined CCSMCOUPLED
+   REAL(wp), PUBLIC ::   rhoi   = SHR_CONST_RHOICE  !: volumic mass of sea ice (kg/m3)
+#else
    REAL(wp), PUBLIC ::   rhoi     =  917._wp         !: volumic mass of sea ice                               [kg/m3]
+#endif
    REAL(wp), PUBLIC ::   rhow     = 1000._wp         !: volumic mass of freshwater in melt ponds              [kg/m3]
    REAL(wp), PUBLIC ::   rcnd_i   =    2.034396_wp   !: thermal conductivity of fresh ice                     [W/m/K]
    REAL(wp), PUBLIC ::   rcpi     = 2067.0_wp        !: specific heat of fresh ice                            [J/kg/K]

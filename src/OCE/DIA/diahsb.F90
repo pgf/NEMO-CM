@@ -30,6 +30,9 @@ MODULE diahsb
    USE lib_fortran    ! glob_sum
    USE lib_mpp        ! distributed memory computing library
    USE timing         ! preformance summary
+#if defined CCSMCOUPLED
+   USE qflxice         ! frazil ice formation
+#endif
 
    IMPLICIT NONE
    PRIVATE
@@ -137,6 +140,11 @@ CONTAINS
       frc_v = frc_v + z_frc_trd_v * rn_Dt
       frc_t = frc_t + z_frc_trd_t * rn_Dt
       frc_s = frc_s + z_frc_trd_s * rn_Dt
+#if defined CCSMCOUPLED
+      ! Add frazil ice formation heat flux
+      z_frc_trd_t = -0.5_wp * glob_sum( 'diahsb', QICE(:,:) * surf(:,:) )
+      frc_t = frc_t + z_frc_trd_t
+#endif
       !                                          ! Advection flux through fixed surface (z=0)
       IF( ln_linssh ) THEN
          z_wn_trd_t = zbg(9)

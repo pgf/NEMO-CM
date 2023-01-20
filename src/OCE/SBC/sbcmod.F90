@@ -43,6 +43,9 @@ MODULE sbcmod
 #endif
    USE sbcice_cice    ! surface boundary condition: CICE sea-ice model
    USE sbccpl         ! surface boundary condition: coupled formulation
+#if defined CCSMCOUPLED
+   USE sbccpl_cesm      ! surface boundary condition: NCAR CESM coupled framework
+#endif
    USE cpl_oasis3     ! OASIS routines for coupling
    USE sbcclo         ! surface boundary condition: closed sea correction
    USE sbcssr         ! surface boundary condition: sea surface restoring
@@ -138,13 +141,21 @@ CONTAINS
          WRITE(numout,*) '         ABL          formulation                   ln_abl        = ', ln_abl
          WRITE(numout,*) '         Surface wave (forced or coupled)           ln_wave       = ', ln_wave
          WRITE(numout,*) '      Type of coupling (Ocean/Ice/Atmosphere) : '
+#if defined CCSMCOUPLED
+         WRITE(numout,*) '          *** NCAR CESM coupled formulation ***     ln_cpl      = ', ln_cpl
+#else
          WRITE(numout,*) '         ocean-atmosphere coupled formulation       ln_cpl        = ', ln_cpl
+#endif
          WRITE(numout,*) '         mixed forced-coupled     formulation       ln_mixcpl     = ', ln_mixcpl
 !!gm  lk_oasis is controlled by key_oasis3  ===>>>  It shoud be removed from the namelist
          WRITE(numout,*) '         OASIS coupling (with atm or sas)           lk_oasis      = ', lk_oasis
          WRITE(numout,*) '         components of your executable              nn_components = ', nn_components
          WRITE(numout,*) '      Sea-ice : '
+#if defined CCSMCOUPLED
+         WRITE(numout,*) '          *** NCAR CESM sea ice model (active or data)nn_ice      = ', nn_ice
+#else
          WRITE(numout,*) '         ice management in the sbc (=0/1/2/3)       nn_ice        = ', nn_ice
+#endif
          WRITE(numout,*) '         ice embedded into ocean                    ln_ice_embd   = ', ln_ice_embd
          WRITE(numout,*) '      Misc. options of sbc : '
          WRITE(numout,*) '         Light penetration in temperature Eq.       ln_traqsr     = ', ln_traqsr
@@ -153,6 +164,9 @@ CONTAINS
          WRITE(numout,*) '         FreshWater Budget control  (=0/1/2)        nn_fwb        = ', nn_fwb
          WRITE(numout,*) '         Patm gradient added in ocean & ice Eqs.    ln_apr_dyn    = ', ln_apr_dyn
          WRITE(numout,*) '         runoff / runoff mouths                     ln_rnf        = ', ln_rnf
+#if defined CCSMCOUPLED
+         WRITE(numout,*) '          *** NCAR CESM runoff used in coupled mode l_rnfcpl      = ', l_rnfcpl
+#endif
          WRITE(numout,*) '         nb of iterations if land-sea-mask applied  nn_lsm        = ', nn_lsm
       ENDIF
       !
@@ -180,10 +194,12 @@ CONTAINS
          CALL ctl_stop( 'sbc_init : unsupported value for nn_components' )
       END SELECT
       !                             !* coupled options
+#if ! defined CCSMCOUPLED
       IF( ln_cpl ) THEN
          IF( .NOT. lk_oasis )   CALL ctl_stop( 'sbc_init : coupled mode with an atmosphere model (ln_cpl=T)',   &
             &                                  '           required to defined key_oasis3' )
       ENDIF
+#endif
       IF( ln_mixcpl ) THEN
          IF( .NOT. lk_oasis )   CALL ctl_stop( 'sbc_init : mixed forced-coupled mode (ln_mixcpl=T) ',   &
             &                                  '           required to defined key_oasis3' )
@@ -223,9 +239,26 @@ CONTAINS
          erp(:,:) = 0._wp
       ENDIF
       !
+#if defined CCSMCOUPLED
+      ! add control of consistency if not CCSMCOUPLED
+# if defined key_oasis3 || defined key_oasis4
+      IF (lk_cesm) &
+        CALL ctl_stop( 'sbc_init: key_oasis3/4 defined within CESM coupled framework (key CCSMCOUPLED) !' )
+# endif
+# if defined key_si3
+      IF (lk_cesm) &
+        CALL ctl_stop( 'sbc_init: key_si3 defined within CESM coupled framework (key CCSMCOUPLED) !' )
+# endif
+      ! NCAR CESM coupling, external sea ice model -> reset nn_ice=0
+      IF (lk_cesm .AND. nn_ice > 0) THEN
+        nn_ice = 0
+        CALL ctl_warn( 'sbc_init: NCAR CESM coupled formulation, reset nn_ice=0!' )
+      END IF
+#else
       IF( nn_ice == 0 ) THEN        !* No sea-ice in the domain : ice fraction is always zero
          IF( nn_components /= jp_iam_oce )   fr_i(:,:) = 0._wp    ! except for OCE in SAS-OCE coupled case
       ENDIF
+#endif
       !
       sfx   (:,:) = 0._wp           !* salt flux due to freezing/melting
       fmmflx(:,:) = 0._wp           !* freezing minus melting flux
@@ -252,7 +285,11 @@ CONTAINS
       IF( ln_flx          ) THEN   ;   nsbc = jp_flx     ; icpt = icpt + 1   ;   ENDIF       ! flux                 formulation
       IF( ln_blk          ) THEN   ;   nsbc = jp_blk     ; icpt = icpt + 1   ;   ENDIF       ! bulk                 formulation
       IF( ln_abl          ) THEN   ;   nsbc = jp_abl     ; icpt = icpt + 1   ;   ENDIF       ! ABL                  formulation
+#if defined CCSMCOUPLED
+      IF( ll_purecpl      ) THEN   ;   nsbc = jp_cplcesm ; icpt = icpt + 1   ;   ENDIF       ! NCAR CESM
+#else
       IF( ll_purecpl      ) THEN   ;   nsbc = jp_purecpl ; icpt = icpt + 1   ;   ENDIF       ! Pure Coupled         formulation
+#endif
       IF( ll_opa          ) THEN   ;   nsbc = jp_none    ; icpt = icpt + 1   ;   ENDIF       ! opa coupling via SAS module
       !
       IF( icpt /= 1 )    CALL ctl_stop( 'sbc_init : choose ONE and only ONE sbc option' )
@@ -264,7 +301,11 @@ CONTAINS
          CASE( jp_flx     )   ;   WRITE(numout,*) '   ==>>>   flux formulation'
          CASE( jp_blk     )   ;   WRITE(numout,*) '   ==>>>   bulk formulation'
          CASE( jp_abl     )   ;   WRITE(numout,*) '   ==>>>   ABL  formulation'
+#if defined CCSMCOUPLED
+         CASE( jp_cplcesm )   ;   WRITE(numout,*) '          *** NCAR CESM coupled formulation ***'
+#else
          CASE( jp_purecpl )   ;   WRITE(numout,*) '   ==>>>   pure coupled formulation'
+#endif
 !!gm abusive use of jp_none ??   ===>>> need to be check and changed by adding a jp_sas parameter
          CASE( jp_none    )   ;   WRITE(numout,*) '   ==>>>   OCE coupled to SAS via oasis'
             IF( ln_mixcpl )       WRITE(numout,*) '               + forced-coupled mixed formulation'
@@ -434,6 +475,9 @@ CONTAINS
       CASE( jp_purecpl )   ;   CALL sbc_cpl_rcv   ( kt, nn_fsbc, nn_ice, Kbb, Kmm )  ! pure coupled formulation
       CASE( jp_none    )
          IF( ll_opa    )       CALL sbc_cpl_rcv   ( kt, nn_fsbc, nn_ice, Kbb, Kmm )  ! OCE-SAS coupling: OCE receiving fields from SAS
+#if defined CCSMCOUPLED
+      CASE( jp_cplcesm )   ;   CALL sbc_cpl_cesm_rcv ( kt, nn_fsbc, nn_ice )   ! NCAR CESM formulation
+#endif
       END SELECT
       IF( ln_mixcpl )          CALL sbc_cpl_rcv   ( kt, nn_fsbc, nn_ice, Kbb, Kmm )  ! forced-coupled mixed formulation after forcing
       !
@@ -443,8 +487,8 @@ CONTAINS
             vtau(ji,jj) = vtau(ji,jj) * ( tauoc_wave(ji,jj) + tauoc_wave(ji,jj-1) ) * 0.5_wp
          END_2D
          !
-         CALL lbc_lnk( 'sbcwave', utau, 'U', -1._wp )
-         CALL lbc_lnk( 'sbcwave', vtau, 'V', -1._wp )
+         CALL lbc_lnk( 'sbcwave', utau, 'U', -1. )
+         CALL lbc_lnk( 'sbcwave', vtau, 'V', -1. )
          !
          taum(:,:) = taum(:,:)*tauoc_wave(:,:)
          !
@@ -454,8 +498,8 @@ CONTAINS
       ELSEIF( ln_wave .AND. ln_taw ) THEN                  ! Wave stress reduction
          utau(:,:) = utau(:,:) - tawx(:,:) + twox(:,:)
          vtau(:,:) = vtau(:,:) - tawy(:,:) + twoy(:,:)
-         CALL lbc_lnk( 'sbcwave', utau, 'U', -1._wp )
-         CALL lbc_lnk( 'sbcwave', vtau, 'V', -1._wp )
+         CALL lbc_lnk( 'sbcwave', utau, 'U', -1. )
+         CALL lbc_lnk( 'sbcwave', vtau, 'V', -1. )
          !
          DO_2D( 0, 0, 0, 0)
              taum(ji,jj) = sqrt((.5*(utau(ji-1,jj)+utau(ji,jj)))**2 + (.5*(vtau(ji,jj-1)+vtau(ji,jj)))**2)
@@ -465,7 +509,7 @@ CONTAINS
             &                                'If not requested select ln_taw=.false.' )
          !
       ENDIF
-      CALL lbc_lnk( 'sbcmod', taum(:,:), 'T', 1._wp )
+      CALL lbc_lnk( 'sbcmod', taum(:,:), 'T', 1. )
       !
       IF( ln_icebergs ) THEN  ! save pure stresses (with no ice-ocean stress) for use by icebergs
          utau_icb(:,:) = utau(:,:) ; vtau_icb(:,:) = vtau(:,:) 
@@ -600,6 +644,25 @@ CONTAINS
          CALL iom_put( "wspd"   , wndm        )                ! wind speed  module over free ocean or leads in presence of sea-ice
          CALL iom_put( "qrp"    , qrp         )                ! heat flux damping
          CALL iom_put( "erp"    , erp         )                ! freshwater flux damping
+#if defined CCSMCOUPLED
+         CALL iom_put("evap_x2o",  evap_x2o)
+         CALL iom_put("prec_x2o",  rain_x2o+snow_x2o)
+         CALL iom_put("rain_x2o",  rain_x2o)
+         CALL iom_put("snow_x2o",  snow_x2o)
+         CALL iom_put("roff_x2o",  roff_x2o)
+         CALL iom_put("ioff_x2o",  ioff_x2o)
+         CALL iom_put("meltw_x2o", meltw_x2o)
+         CALL iom_put("salt_x2o",  salt_x2o)
+         CALL iom_put("swnet_x2o", swnet_x2o)
+         CALL iom_put("lwdn_x2o",  lwdn_x2o)
+         CALL iom_put("lwup_x2o",  lwup_x2o)
+         CALL iom_put("lwnet_x2o", lwdn_x2o+lwup_x2o)
+         CALL iom_put("sen_x2o",   sen_x2o)
+         CALL iom_put("lat_x2o",   lat_x2o)
+         CALL iom_put("melth_x2o", melth_x2o)
+         CALL iom_put("sicew_x2o", sicew_x2o)
+         CALL iom_put("ice_cover", fr_i )   ! ice fraction 
+#endif
       ENDIF
       !
       IF(sn_cfctl%l_prtctl) THEN     ! print mean trends (used for debugging)

@@ -98,6 +98,13 @@ MODULE par_oce
    INTEGER, PUBLIC ::   Nje0             !: end   J-index without halo
    INTEGER, PUBLIC ::   Ni_0, Nj_0       !: local domain size without halo
    INTEGER, PUBLIC ::   Ni0glo, Nj0glo   !: global domain size without halo
+#if defined CCSMCOUPLED
+   INTEGER, PUBLIC ::   Nis0L            !: start I-index without halo for land subdomain
+   INTEGER, PUBLIC ::   Nie0L            !: end   I-index without halo for land subdomain
+   INTEGER, PUBLIC ::   Njs0L            !: start J-index without halo for land subdomain
+   INTEGER, PUBLIC ::   Nje0L            !: end   J-index without halo for land subdomain
+#endif
+
 
    !!----------------------------------------------------------------------
    !! NEMO/OCE 4.0 , NEMO Consortium (2018)

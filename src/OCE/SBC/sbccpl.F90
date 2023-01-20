@@ -1446,7 +1446,11 @@ CONTAINS
       !                                                      ! ================== !
       IF( srcv(jpr_toce)%laction ) THEN                      ! received by sas in case of opa <-> sas coupling
          sst_m(:,:) = frcv(jpr_toce)%z3(:,:,1)
+#if defined CCSMCOUPLED
+         IF( srcv(jpr_soce)%laction .AND. ln_useCT ) THEN    ! make sure that sst_m is the potential temperature
+#else
          IF( srcv(jpr_soce)%laction .AND. l_useCT ) THEN    ! make sure that sst_m is the potential temperature
+#endif
             sst_m(:,:) = eos_pt_from_ct( sst_m(:,:), sss_m(:,:) )
          ENDIF
       ENDIF
@@ -1672,7 +1676,7 @@ CONTAINS
                p_taui(ji,jj) = zztmp1 * ( frcv(jpr_itx1)%z3(ji+1,jj  ,1) + frcv(jpr_itx1)%z3(ji,jj,1) )
                p_tauj(ji,jj) = zztmp2 * ( frcv(jpr_ity1)%z3(ji  ,jj+1,1) + frcv(jpr_ity1)%z3(ji,jj,1) )
             END_2D
-            CALL lbc_lnk( 'sbccpl', p_taui, 'U',  -1._wp, p_tauj, 'V',  -1._wp )
+            CALL lbc_lnk( 'sbccpl', p_taui, 'U',  -1., p_tauj, 'V',  -1. )
          END SELECT
 
       ENDIF
@@ -2316,7 +2320,11 @@ CONTAINS
             ztmp1(:,:) = ts(:,:,1,jp_tem,Kmm)   ! send temperature as it is (potential or conservative) -> use of l_useCT on the received part
          ELSE
             ! we must send the surface potential temperature
+#if defined CCSMCOUPLED
+            IF( ln_useCT )  THEN    ;   ztmp1(:,:) = eos_pt_from_ct( ts(:,:,1,jp_tem,Kmm), ts(:,:,1,jp_sal,Kmm) )
+#else
             IF( l_useCT )  THEN    ;   ztmp1(:,:) = eos_pt_from_ct( ts(:,:,1,jp_tem,Kmm), ts(:,:,1,jp_sal,Kmm) )
+#endif
             ELSE                   ;   ztmp1(:,:) = ts(:,:,1,jp_tem,Kmm)
             ENDIF
             !

@@ -78,7 +78,11 @@ MODULE eosbn2
    LOGICAL , PUBLIC ::   ln_SEOS
 
    ! Parameters
+#if defined CCSMCOUPLED
+   LOGICAL , PUBLIC    ::   ln_useCT         ! =T in ln_TEOS10=T (i.e. use eos_pt_from_ct to compute sst_m), =F otherwise
+#else
    LOGICAL , PUBLIC    ::   l_useCT         ! =T in ln_TEOS10=T (i.e. use eos_pt_from_ct to compute sst_m), =F otherwise
+#endif
    INTEGER , PUBLIC    ::   neos            ! Identifier for equation of state used
 
    INTEGER , PARAMETER ::   np_teos10 = -1  ! parameter for using TEOS10
@@ -1377,7 +1381,11 @@ CONTAINS
          IF(lwp) WRITE(numout,*)
          IF(lwp) WRITE(numout,*) '   ==>>>   use of TEOS-10 equation of state (cons. temp. and abs. salinity)'
          !
+#if defined CCSMCOUPLED
+         ln_useCT = .TRUE.                          ! model temperature is Conservative temperature
+#else
          l_useCT = .TRUE.                          ! model temperature is Conservative temperature
+#endif
          !
          rdeltaS = 32._wp
          r1_S0  = 0.875_wp/35.16504_wp
@@ -1569,7 +1577,11 @@ CONTAINS
          IF(lwp) WRITE(numout,*)
          IF(lwp) WRITE(numout,*) '   ==>>>   use of EOS-80 equation of state (pot. temp. and pract. salinity)'
          !
+#if defined CCSMCOUPLED
+         ln_useCT = .FALSE.                         ! model temperature is Potential temperature
+#else
          l_useCT = .FALSE.                         ! model temperature is Potential temperature
+#endif
          rdeltaS = 20._wp
          r1_S0  = 1._wp/40._wp
          r1_T0  = 1._wp/40._wp
@@ -1774,7 +1786,11 @@ CONTAINS
             WRITE(numout,*) '                 2nd cabbel. coef.     rn_nu      = ', rn_nu
             WRITE(numout,*) '              Caution: rn_beta0=0 incompatible with ddm parameterization '
          ENDIF
+#if defined CCSMCOUPLED
+         ln_useCT = .TRUE.          ! Use conservative temperature
+#else
          l_useCT = .TRUE.          ! Use conservative temperature
+#endif
          !
       CASE DEFAULT                     !==  ERROR in neos  ==!
          WRITE(ctmp1,*) '          bad flag value for neos = ', neos, '. You should never see this error'
@@ -1788,7 +1804,11 @@ CONTAINS
       r1_rho0_rcp = 1._wp / rho0_rcp
       !
       IF(lwp) THEN
+#if defined CCSMCOUPLED
+         IF( ln_useCT )   THEN
+#else
          IF( l_useCT )   THEN
+#endif
             WRITE(numout,*)
             WRITE(numout,*) '   ==>>>   model uses Conservative Temperature'
             WRITE(numout,*) '           Important: model must be initialized with CT and SA fields'

@@ -62,12 +62,16 @@ CONTAINS
       !
       !
       IF(lwp) THEN                   ! control print
-         WRITE(numout,*)
          IF( ln_rsttr ) THEN
+            WRITE(numout,*)
             WRITE(numout,*) '   ==>>>   Read a restart file for passive tracer : ', TRIM( cn_trcrst_in )
-         ELSE IF( ln_trcdta ) THEN
+         ENDIF
+         IF( ln_trcdta .AND. .NOT.ln_rsttr ) THEN
+            WRITE(numout,*)
             WRITE(numout,*) '   ==>>>   Some of the passive tracers are initialised from climatologies '
-         ELSE
+         ENDIF
+         IF( .NOT.ln_trcdta ) THEN
+            WRITE(numout,*)
             WRITE(numout,*) '   ==>>>   All the passive tracers are initialised with constant values '
          ENDIF
       ENDIF

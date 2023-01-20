@@ -305,9 +305,9 @@ CONTAINS
       llenddef = .TRUE.
 #endif
       IF( llenddef ) THEN
-#if defined key_xios
-         CALL xios_oasis_enddef()   ! see "Joint_usage_OASIS3-MCT_XIOS.pdf" on XIOS wiki page
-#endif
+!#if defined key_xios
+!         CALL xios_oasis_enddef()   ! see "Joint_usage_OASIS3-MCT_XIOS.pdf" on XIOS wiki page
+!#endif
          CALL oasis_enddef(nerror)
          IF( nerror /= OASIS_Ok )   CALL oasis_abort ( ncomp_id, 'cpl_define', 'Failure in oasis_enddef')
       ENDIF

@@ -1,5 +1,5 @@
-#if ! defined CCSMCOUPLED
-MODULE sbcrnf_orig
+#if defined CCSMCOUPLED
+MODULE sbcrnf
    !!======================================================================
    !!                       ***  MODULE  sbcrnf  ***
    !! Ocean forcing:  river runoff
@@ -55,8 +55,9 @@ MODULE sbcrnf_orig
    REAL(wp)                   ::   rn_hrnf           !: runoffs, depth over which enhanced vertical mixing is used
    REAL(wp)          , PUBLIC ::   rn_avt_rnf        !: runoffs, value of the additional vertical mixing coef. [m2/s]
    REAL(wp)          , PUBLIC ::   rn_rfact          !: multiplicative factor for runoff
+   REAL(wp)          , PUBLIC ::   rn_rnf_bnd   = 0._wp   !: max allowed runoff. [kg/m2/s]
 
-   LOGICAL , PUBLIC ::   l_rnfcpl = .false.   !: runoffs recieved from oasis
+   LOGICAL , PUBLIC ::   l_rnfcpl = .true.   !: runoffs recieved from oasis
    INTEGER , PUBLIC ::   nkrnf = 0            !: nb of levels over which Kz is increased at river mouths
 
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:)   ::   rnfmsk              !: river mouth mask (hori.)
@@ -126,6 +127,15 @@ CONTAINS
       IF(   ln_rnf_sal   )   CALL fld_read ( kt, nn_fsbc, sf_s_rnf )    ! idem for runoffs salinity    if required
       !
       IF( MOD( kt - 1, nn_fsbc ) == 0 ) THEN
+         IF( .NOT. l_rnfcpl )   rnf(:,:) = rn_rfact * ( sf_rnf(1)%fnow(:,:,1) ) ! updated runoff value at time step kt
+         !
+         ! Update runoff mask using runoff fields received from CESM coupler
+         IF( l_rnfcpl ) THEN
+            rnfmsk(:,:) = 0.0_wp
+            WHERE (rnf(:,:) /= 0.0_wp)
+               rnfmsk(:,:) = 0.5_wp
+            END WHERE
+         ENDIF
          !
          IF( .NOT. l_rnfcpl ) THEN
              rnf(:,:) = rn_rfact * ( sf_rnf(1)%fnow(:,:,1) ) * tmask(:,:,1)  ! updated runoff value at time step kt
@@ -263,7 +273,8 @@ CONTAINS
       NAMELIST/namsbc_rnf/ cn_dir            , ln_rnf_depth, ln_rnf_tem, ln_rnf_sal, ln_rnf_icb,   &
          &                 sn_rnf, sn_cnf    , sn_i_rnf, sn_s_rnf    , sn_t_rnf  , sn_dep_rnf,   &
          &                 ln_rnf_mouth      , rn_hrnf     , rn_avt_rnf, rn_rfact,     &
-         &                 ln_rnf_depth_ini  , rn_dep_max  , rn_rnf_max, nn_rnf_depth_file
+         &                 ln_rnf_depth_ini  , rn_dep_max  , rn_rnf_max, nn_rnf_depth_file, &
+         &                 rn_rnf_bnd
       !!----------------------------------------------------------------------
       !
       !                                         !==  allocate runoff arrays
@@ -300,6 +311,7 @@ CONTAINS
          WRITE(numout,*) '      river mouth additional Kz                  rn_avt_rnf   = ', rn_avt_rnf
          WRITE(numout,*) '      depth of river mouth additional mixing     rn_hrnf      = ', rn_hrnf
          WRITE(numout,*) '      multiplicative factor for runoff           rn_rfact     = ', rn_rfact
+         WRITE(numout,*) '      max allowed runoff [kg m-2 s-1]            rn_rnf_bnd   = ', rn_rnf_bnd
       ENDIF
       !                                   ! ==================
       !                                   !   Type of runoff
@@ -357,15 +369,24 @@ CONTAINS
       ENDIF
       !
       IF( ln_rnf_depth ) THEN                    ! depth of runoffs set from a file
-         IF(lwp) WRITE(numout,*)
-         IF(lwp) WRITE(numout,*) '   ==>>>   runoffs depth read in a file'
-         rn_dep_file = TRIM( cn_dir )//TRIM( sn_dep_rnf%clname )
-         IF( .NOT. sn_dep_rnf%ln_clim ) THEN   ;   WRITE(rn_dep_file, '(a,"_y",i4)' ) TRIM( rn_dep_file ), nyear    ! add year
-            IF( sn_dep_rnf%clftyp == 'monthly' )   WRITE(rn_dep_file, '(a,"m",i2)'  ) TRIM( rn_dep_file ), nmonth   ! add month
+         IF ( .NOT. l_rnfcpl ) THEN
+            IF(lwp) WRITE(numout,*)
+            IF(lwp) WRITE(numout,*) '   ==>>>   runoffs depth read in a file'
+            rn_dep_file = TRIM( cn_dir )//TRIM( sn_dep_rnf%clname )
+            IF( .NOT. sn_dep_rnf%ln_clim ) THEN   ;   WRITE(rn_dep_file, '(a,"_y",i4)' ) TRIM( rn_dep_file ), nyear    ! add year
+               IF( sn_dep_rnf%clftyp == 'monthly' )   WRITE(rn_dep_file, '(a,"m",i2)'  ) TRIM( rn_dep_file ), nmonth   ! add month
+            ENDIF
+            CALL iom_open ( rn_dep_file, inum )                                                 ! open file
+            CALL iom_get  ( inum, jpdom_global, sn_dep_rnf%clvar, h_rnf, kfill = jpfillcopy )   ! read the river mouth. no 0 on halos!
+            CALL iom_close( inum )                                                              ! close file
+         ELSE
+            ! We cheat the code and compute the mask for all grid points for
+            ! CESM
+            ! using the namelist value for the maximum runoff depth rn_hrnf
+            IF(lwp) WRITE(numout,*)
+            IF(lwp) WRITE(numout,*) ' runoffs depth in CESM coupling computed using rn_hrnf for all gridpoints'
+            h_rnf(:,:) = rn_hrnf
          ENDIF
-         CALL iom_open ( rn_dep_file, inum )                                                 ! open file
-         CALL iom_get  ( inum, jpdom_global, sn_dep_rnf%clvar, h_rnf, kfill = jpfillcopy )   ! read the river mouth. no 0 on halos!
-         CALL iom_close( inum )                                                              ! close file
          !
          nk_rnf(:,:) = 0                               ! set the number of level over which river runoffs are applied
          DO_2D( nn_hls, nn_hls, nn_hls, nn_hls )
@@ -468,6 +489,8 @@ CONTAINS
             nkrnf = 2
             DO WHILE( nkrnf /= jpkm1 .AND. gdepw_1d(nkrnf+1) < rn_hrnf )   ;   nkrnf = nkrnf + 1
             END DO
+            ! set this value here once per all
+            rnfmsk_z(1:nkrnf) = 1._wp
             IF( ln_sco )   CALL ctl_warn( 'sbc_rnf_init: number of levels over which Kz is increased is computed for zco...' )
          ENDIF
          IF(lwp) WRITE(numout,*)
@@ -476,8 +499,9 @@ CONTAINS
          IF(lwp) WRITE(numout,*) '               by ', rn_avt_rnf,' m2/s  over ', nkrnf, ' w-levels'
          IF(lwp) WRITE(numout,*) '             - set to zero SSS damping       (if ln_ssr=T)'
          IF(lwp) WRITE(numout,*) '             - mixed upstream-centered       (if ln_traadv_cen2=T)'
+         IF(lwp) WRITE(numout,*) '             - muscl scheme                  (if ln_traadv_muscl=T)'
          !
-         CALL rnf_mouth                             ! set river mouth mask
+         IF ( .NOT. l_rnfcpl ) CALL rnf_mouth                             ! set river mouth mask
          !
       ELSE                                      ! No treatment at river mouths
          IF(lwp) WRITE(numout,*)
@@ -540,5 +564,5 @@ CONTAINS
    END SUBROUTINE rnf_mouth
 
    !!======================================================================
-END MODULE sbcrnf_orig
+END MODULE sbcrnf
 #endif

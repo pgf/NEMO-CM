@@ -66,8 +66,8 @@ CONTAINS
          !
          !                                                         ! Partial top/bottom cell: GRADh( trb )  
          IF( ln_zps ) THEN
-            IF( ln_isfcav ) THEN ; CALL zps_hde_isf( kt, jptra, tr(:,:,:,:,Kbb), pgtu=gtru, pgtv=gtrv, pgtui=gtrui, pgtvi=gtrvi )  ! both top & bottom
-            ELSE                 ; CALL zps_hde    ( kt, jptra, tr(:,:,:,:,Kbb), gtru, gtrv )                                      !  only bottom
+            IF( ln_isfcav ) THEN ; CALL zps_hde_isf( kt, Kmm, jptra, tr(:,:,:,:,Kbb), pgtu=gtru, pgtv=gtrv, pgtui=gtrui, pgtvi=gtrvi )  ! both top & bottom
+            ELSE                 ; CALL zps_hde    ( kt, Kmm, jptra, tr(:,:,:,:,Kbb), gtru, gtrv )                                      !  only bottom
             ENDIF
          ENDIF
          !
@@ -95,9 +95,6 @@ CONTAINS
          !
       ELSE                                               ! 1D vertical configuration
                                 CALL trc_sbc( kt,      Kmm,       tr, Krhs )  ! surface boundary condition
-         IF( ln_trcbc .AND. lltrcbc .AND. kt /= nit000 )  &
-                                CALL trc_bc     ( kt,      Kmm, tr, Krhs )      ! tracers: surface and lateral Boundary Conditions 
-         IF( ln_trcais )        CALL trc_ais    ( kt,      Kmm, tr, Krhs )      ! tracers from Antarctic Ice Sheet (icb, isf)               
          IF( ln_trcdmp )        CALL trc_dmp( kt, Kbb, Kmm,       tr, Krhs )  ! internal damping trends
                                 CALL trc_zdf( kt, Kbb, Kmm, Krhs, tr, Kaa  )  ! vert. mixing & after tracer	==> after
                                 CALL trc_atf( kt, Kbb, Kmm, Kaa , tr )        ! time filtering of "now" tracer fields

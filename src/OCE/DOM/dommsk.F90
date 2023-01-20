@@ -82,6 +82,7 @@ CONTAINS
       INTEGER, DIMENSION(:,:), INTENT(in) ::   k_top, k_bot   ! first and last ocean level
       !
       INTEGER  ::   ji, jj, jk     ! dummy loop indices
+      INTEGER  ::   iif, iil, ijf, ijl
       INTEGER  ::   iktop, ikbot   !   -       -
       INTEGER  ::   ios, inum
       !!
@@ -195,6 +196,26 @@ CONTAINS
       !
       CALL dom_uniq( tmask_i, 'T' )
       tmask_i(:,:) = ssmask(:,:) * tmask_i(:,:)
+#if defined CCSMCOUPLED
+      ! north fold mask
+      ! ---------------
+      iif = nn_hls                         ! ???
+      iil = Ni_0 - nn_hls + 1
+      ijf = nn_hls                         ! ???
+      ijl = Nj_0 - nn_hls + 1
+      tpol(1:jpiglo) = 1._wp
+      fpol(1:jpiglo) = 1._wp
+      IF( l_NFold ) THEN
+         tpol(jpiglo/2+1:jpiglo) = 0._wp
+         fpol(     1    :jpiglo) = 0._wp
+         IF( mjg0(Nje0) == Nj0glo ) THEN                  ! only half of the nlcj-1 row
+            DO ji = Nis0, Nie0
+               tmask_i(ji,Nje0-1) = tmask_i(ji,Nje0-1) * tpol(mig0(ji))
+            END DO
+         ENDIF
+      ENDIF
+#endif
+
 
       ! Lateral boundary conditions on velocity (modify fmask)
       ! ---------------------------------------  

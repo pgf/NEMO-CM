@@ -1,8 +1,10 @@
-  
+#define CAT(x,y) PASTE(x,y)
+#define PASTE(x,y) x ## y  
+
 #if ! defined BLOCK_ISEND && ! defined BLOCK_FILL
-   SUBROUTINE lbc_lnk_pt2pt_/**/PRECISION( cdname, ptab, cd_nat, psgn, kfld, kfillmode, pfillval, khls, lsend, lrecv, ld4only )
+   SUBROUTINE CAT(lbc_lnk_pt2pt_,PRECISION)( cdname, ptab, cd_nat, psgn, kfld, kfillmode, pfillval, khls, lsend, lrecv, ld4only )
       CHARACTER(len=*)              , INTENT(in   ) ::   cdname      ! name of the calling subroutine
-      TYPE(PTR_4d_/**/PRECISION),  DIMENSION(:), INTENT(inout) ::   ptab        ! pointer of arrays on which apply the b.c.
+      TYPE(CAT(PTR_4d_,PRECISION)),  DIMENSION(:), INTENT(inout) ::   ptab        ! pointer of arrays on which apply the b.c.
       CHARACTER(len=1), DIMENSION(:), INTENT(in   ) ::   cd_nat      ! nature of array grid-points
       REAL(PRECISION),  DIMENSION(:), INTENT(in   ) ::   psgn        ! sign used across the north fold boundary
       INTEGER                       , INTENT(in   ) ::   kfld        ! number of pt3d arrays
@@ -246,7 +248,7 @@
          DEALLOCATE(BUFFSND)
       ENDIF
       !
-   END SUBROUTINE lbc_lnk_pt2pt_/**/PRECISION
+   END SUBROUTINE CAT(lbc_lnk_pt2pt_,PRECISION)
 #endif
 
 #if defined BLOCK_ISEND

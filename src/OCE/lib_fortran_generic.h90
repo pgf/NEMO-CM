@@ -27,12 +27,16 @@
 #      define K_SIZE(ptab)      SIZE(ptab,3)
 #      define MASK_ARRAY(i,j)   tmask_i(i,j)
 #   endif
+#define CAT(x,y) PASTE(x,y)
+#define PASTE(x,y) x ## y
+#define CATM(x,y,z,w) PASTEM(x,y,z,w)
+#define PASTEM(x,y,z,w) x ## y ## z ## w
 
-   FUNCTION glob_sum_/**/XD/**/( cdname, ptab )
+   FUNCTION FUNCTION_GLOBSUM( cdname, ptab )
       !!----------------------------------------------------------------------
       CHARACTER(len=*),  INTENT(in   ) ::   cdname  ! name of the calling subroutine
       ARRAY_TYPE(:,:,:)                             ! array on which operation is applied
-      REAL(wp)   ::  glob_sum_/**/XD
+      REAL(wp)   ::  FUNCTION_GLOBSUM
       !
       !!-----------------------------------------------------------------------
       !
@@ -55,19 +59,19 @@
          ijs = 1   ;   ije = jpj
       ENDIF
       !
-      ctmp = CMPLX( 0._dp, 0._dp, dp )   ! warning ctmp is cumulated
+      ctmp = CMPLX( 0.e0, 0.e0, dp )   ! warning ctmp is cumulated
       DO jk = 1, ipk
         DO jj = ijs, ije
           DO ji = iis, iie
              ztmp =  ARRAY_IN(ji,jj,jk) * MASK_ARRAY(ji,jj)
-             CALL DDPDD( CMPLX( ztmp, 0._wp, dp ), ctmp )
+             CALL DDPDD( CMPLX( ztmp, 0.e0, dp ), ctmp )
           END DO
         END DO
       END DO
       CALL mpp_sum( cdname, ctmp )   ! sum over the global domain
-      glob_sum_/**/XD = REAL(ctmp,wp)
+      CAT(glob_sum_,XD) = REAL(ctmp,wp)
 
-   END FUNCTION glob_sum_/**/XD
+   END FUNCTION FUNCTION_GLOBSUM
 
 #undef XD
 #undef ARRAY_TYPE
@@ -102,31 +106,34 @@
 #      define OPER max
 #   endif
 
-   FUNCTION glob_/**/OPER/**/_/**/XD/**/( cdname, ptab )
+   FUNCTION CATM(glob_,OPER,_,XD)( cdname, ptab )
       !!----------------------------------------------------------------------
       CHARACTER(len=*),  INTENT(in   ) ::   cdname  ! name of the calling subroutine
       ARRAY_TYPE(:,:,:)                             ! array on which operation is applied
-      REAL(wp)   ::  glob_/**/OPER/**/_/**/XD
+      REAL(wp)   ::  CATM(glob_,OPER,_,XD)
       !
       !!-----------------------------------------------------------------------
       !
+      COMPLEX(dp)::   ctmp
       REAL(wp)   ::   ztmp
+      REAL(wp)   ::   ztmpCat
       INTEGER    ::   jk       ! dummy loop indices
       INTEGER    ::   ipk      ! dimensions
       !!-----------------------------------------------------------------------
       !
       ipk = K_SIZE(ptab)   ! 3rd dimension
       !
-      ztmp = OPER/**/val( ARRAY_IN(:,:,1)*tmask_i(:,:) )
+      ztmp = CAT(OPER,val)( ARRAY_IN(:,:,1)*tmask_i(:,:) )
       DO jk = 2, ipk
-         ztmp = OPER/**/(ztmp, OPER/**/val( ARRAY_IN(:,:,jk)*tmask_i(:,:) ))
+         ztmpCat = CAT(OPER,val)( ARRAY_IN(:,:,jk)*tmask_i(:,:) )
+         ztmp = CAT(OPER,(ztmp, ztmpCat))
       ENDDO
 
-      CALL mpp_/**/OPER/**/( cdname, ztmp)
+      CALL CAT(mpp_,OPER)( cdname, ztmp)
 
-      glob_/**/OPER/**/_/**/XD  = ztmp
+      CATM(glob_,OPER,_,XD)  = ztmp
 
-   END FUNCTION glob_/**/OPER/**/_/**/XD
+   END FUNCTION CATM(glob_,OPER,_,XD)
 
 #undef XD
 #undef ARRAY_TYPE
