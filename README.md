@@ -1,26 +1,19 @@
-# NEMO-CM
 Repository for the NEMO model used in CMCC-CM
 
 The original NEMO code is available at https://forge.nemo-ocean.eu/nemo/nemo.git
 
-To update the NEMO code you need to:
+This repository is structured as follow:
+1) utils     -> contains a set of scripts needed to manage NEMO code inside CMCC-CM 
+2) drivers   -> contains the NUOPC cap code
+3) cfgs      -> contains the configurations file for each allowed NEMO grid
+4) interface -> contains the NEMO code modified to run in CMCC-CM. This overwrites the original NEMO code files.
+5) nemocore  -> contains the original NEMO code required in CMCC-CM and set to a specific commit
 
-1) add the gitlab repository as a remote 
-git remote add upstream https://forge.nemo-ocean.eu/nemo/nemo.git
 
-2) retrieve the gitlab 
-git fetch upstream
+Update NEMOCORE
 
-3) merge the actual code with the updated one available on gitlab
-git merge upstream/branch_4.2
-
-4) correct the merge conflicts
-
-5) delete the folders not needed in the CMCC-CM version of NEMO4.2
-CMCC-CM needs only
-	ext/IOIPSL
-	src/OCE
-
-6) push back to the repository the updated version
-git push 
+The script utils/download_nemo.sh
+allows to update the nemocore folder to a specific NEMO commit.
+This operation leads to an updated version of the code stored in the nemocore folder.
+Any specific change required in the interface folder needs to be done manually.
 
