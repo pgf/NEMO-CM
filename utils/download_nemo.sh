@@ -44,6 +44,15 @@ for code in ${target_code} ; do
     mv ${code}/* ../../${target_dir}/${code}
 done
 
+target_ext_dir="nemocore/ext/IOIPSL/src"
+target_ext_code="calendar flincom fliocom histcom ioipsl restcom"
+
+for code in ${target_ext_code} ; do
+    echo "renaming file ${code}"
+    mv ../../${target_ext_dir}/${code}'.f90' ../../${target_ext_dir}/${code}'.F90'
+done
+
+
 # copy license file
 echo "Copy license file"
 mv LICENSE ../../${target_dir}
