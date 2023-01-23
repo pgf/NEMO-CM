@@ -51,6 +51,7 @@ mv LICENSE ../../${target_dir}
 # Clean up 
 cd ..
 rm -rf tmp
+if [ -d ${target_dir} ] ; then rm -rf ${target_dir} ; fi
 
 # End
 echo
