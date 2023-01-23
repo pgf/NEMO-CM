@@ -1,0 +1,86 @@
+PIO_FILESYSTEM_HINTS := gpfs
+ARFLAGS := cru
+PNETCDF_PATH := $(PNETCDF)
+NETCDF_PATH := $(NETCDF)
+SUPPORTS_CXX := FALSE
+AR := xiar
+ifeq ($(COMPILER),intel)
+  FFLAGS_NOOPT :=  -O0 
+  SCC := icc
+  CXX_LDFLAGS :=  -cxxlib 
+  SUPPORTS_CXX := TRUE
+  FFLAGS :=  -qno-opt-dynamic-align  -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model source  
+  FIXEDFLAGS :=  -fixed -132 
+  CXX_LINKER := FORTRAN
+  FC_AUTO_R8 :=  -r8 
+  CFLAGS :=   -qno-opt-dynamic-align -fp-model precise -std=gnu99 
+  FREEFLAGS :=  -free 
+  SFC := ifort
+  SCXX :=  icpc 
+  ifeq ($(MPILIB),mpich2)
+    MPICC := mpiicc
+    MPICXX := mpiicpc
+    MPIFC := mpiifort
+    TRILINOS_PATH := $(TRILINOS_PATH)
+  endif
+endif
+ifeq ($(MODEL),gptl)
+  CPPDEFS := $(CPPDEFS)  -DHAVE_NANOTIME -DBIT64 -DHAVE_VPRINTF -DHAVE_BACKTRACE -DHAVE_SLASHPROC -DHAVE_COMM_F2C -DHAVE_TIMES -DHAVE_GETTIMEOFDAY 
+endif
+ifeq ($(MODEL),nemo)
+  CPPDEFS := $(CPPDEFS)  -Dkey_diaar5 -Dkey_diahth -Dkey_dynspg_ts -Dkey_ldfslp -Dkey_trabbl -Dkey_traldf_c2d -Dkey_zdfddm -Dkey_zdftke -Dkey_mpp_mpi -Dkey_mpp_rep -Dkey_iomput -Dkey_xios2 -Dkey_coupled -DCCSMCOUPLED 
+endif
+ifeq ($(MODEL),pop)
+  CPPDEFS := $(CPPDEFS)  -D_USE_FLOW_CONTROL 
+endif
+ifeq ($(DEBUG),TRUE)
+  ifeq ($(MODEL),nemo)
+    CPPDEFS := $(CPPDEFS)  -Dkey_nosignedzero 
+  endif
+endif
+ifeq ($(COMPILER),intel)
+  FFLAGS := $(FFLAGS)   -xHost 
+  CPPDEFS := $(CPPDEFS)  -DFORTRANUNDERSCORE -DCPRINTEL
+  CPPDEFS := $(CPPDEFS)  -DINTEL_MKL -DHAVE_SSE2 
+  CFLAGS := $(CFLAGS)   -xHost 
+  ifeq ($(compile_threaded),true)
+    FFLAGS := $(FFLAGS)  -qopenmp 
+    CFLAGS := $(CFLAGS)  -qopenmp 
+  endif
+  ifeq ($(DEBUG),TRUE)
+    FFLAGS := $(FFLAGS)  -O0 -g -check uninit -check bounds -check pointers -fpe0 -check noarg_temp_created 
+    CFLAGS := $(CFLAGS)  -O0 -g 
+  endif
+  ifeq ($(DEBUG),FALSE)
+    FFLAGS := $(FFLAGS)  -O2 -debug minimal 
+    CFLAGS := $(CFLAGS)  -O2 -debug minimal 
+  endif
+  ifeq ($(MPILIB),mvapich2)
+    SLIBS := $(SLIBS)  -mkl=cluster 
+  endif
+  ifeq ($(MPILIB),mpich2)
+    SLIBS := $(SLIBS)  -mkl=cluster 
+  endif
+  ifeq ($(MPILIB),mpt)
+    SLIBS := $(SLIBS)  -mkl=cluster 
+  endif
+  ifeq ($(MPILIB),openmpi)
+    SLIBS := $(SLIBS)  -mkl=cluster 
+  endif
+  ifeq ($(MPILIB),mpich)
+    SLIBS := $(SLIBS)  -mkl=cluster 
+  endif
+  ifeq ($(MPILIB),mvapich)
+    SLIBS := $(SLIBS)  -mkl=cluster 
+  endif
+  ifeq ($(MPILIB),impi)
+    SLIBS := $(SLIBS)  -mkl=cluster 
+  endif
+  ifeq ($(MPILIB),mpi-serial)
+    SLIBS := $(SLIBS)  -mkl 
+  endif
+  ifeq ($(compile_threaded),true)
+    FFLAGS_NOOPT := $(FFLAGS_NOOPT)  -qopenmp 
+    LDFLAGS := $(LDFLAGS)  -qopenmp 
+  endif
+endif

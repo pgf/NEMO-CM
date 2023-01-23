@@ -1,0 +1,4 @@
+-----------STARTING postrun-------- Tue Oct 19 09:51:50 CEST 2021
+file 2000_cam6-nemo4_025deg_tc01_00104832_restart,  num_domains 540, num_threads 16
+ Namelist file nam_rebuild not found.
+ Reading namelist from standard input...
