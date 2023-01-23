@@ -15,5 +15,6 @@ Update NEMOCORE
 The script utils/download_nemo.sh
 allows to update the nemocore folder to a specific NEMO commit.
 This operation leads to an updated version of the code stored in the nemocore folder.
+Note that the .h90 files need to be the same in the nemocore and interface folders.
 Any specific change required in the interface folder needs to be done manually.
 
