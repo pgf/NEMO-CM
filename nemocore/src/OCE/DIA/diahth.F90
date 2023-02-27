@@ -36,6 +36,7 @@ MODULE diahth
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   hd20   !: depth of 20 C isotherm                         [m]
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   hd26   !: depth of 26 C isotherm                         [m]
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   hd28   !: depth of 28 C isotherm                         [m]
+   REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   htc04   !: heat content of first 40 m                    [W]
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   htc3   !: heat content of first 300 m                    [W]
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   htc7   !: heat content of first 700 m                    [W]
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) ::   htc20  !: heat content of first 2000 m                   [W]
@@ -57,7 +58,7 @@ CONTAINS
       !!---------------------------------------------------------------------
       !
       ALLOCATE( hth(jpi,jpj), hd14(jpi,jpj), hd17(jpi,jpj), hd20(jpi,jpj), hd26(jpi,jpj), hd28(jpi,jpj), &
-         &      htc3(jpi,jpj), htc7(jpi,jpj), htc20(jpi,jpj), STAT=dia_hth_alloc )
+         &      htc04(jpi,jpj), htc3(jpi,jpj), htc7(jpi,jpj), htc20(jpi,jpj), STAT=dia_hth_alloc )
       !
       CALL mpp_sum ( 'diahth', dia_hth_alloc )
       IF(dia_hth_alloc /= 0)   CALL ctl_stop( 'STOP', 'dia_hth_alloc: failed to allocate arrays.' )
@@ -277,6 +278,15 @@ CONTAINS
             CALL iom_put( '28d', hd28 )    
          ENDIF
         
+        
+         ! ----------------------------- !
+         !  Heat content of first 40 m  !
+         ! ----------------------------- !
+         IF( iom_use ('hc40') ) THEN  
+            zzdep = 40.
+            CALL  dia_hth_htc( Kmm, zzdep, ts(:,:,:,jp_tem,Kmm), htc04 )
+            CALL iom_put( 'hc40', rho0_rcp * htc04 )  ! vertically integrated heat content (J/m2)
+         ENDIF
          ! ----------------------------- !
          !  Heat content of first 300 m  !
          ! ----------------------------- !
