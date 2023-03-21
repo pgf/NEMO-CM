@@ -114,18 +114,32 @@ that are available in the tidal-forcing implementation (see
     <field id="e3t_0"        long_name="Initial T-cell thickness"            standard_name="ref_cell_thickness"    unit="m"   grid_ref="grid_T_3D" />
     <field id="e3tb"         long_name="bottom T-cell thickness"             standard_name="bottom_cell_thickness" unit="m"   grid_ref="grid_T_2D"/>
     <field id="e3t_300"      field_ref="e3t"                grid_ref="grid_T_zoom_300"       detect_missing_value="true" />
-    <field id="e3t_vsum300"  field_ref="e3t_300"            grid_ref="grid_T_vsum"   detect_missing_value="true" />
+    <field id="e3t_vsum300"  field_ref="e3t_300"            grid_ref="grid_T_vsum300"   detect_missing_value="true" />
+    <field id="e3t_2000"      field_ref="e3t"                grid_ref="grid_T_zoom_2000"       detect_missing_value="true" />
+    <field id="e3t_vsum2000"  field_ref="e3t_2000"            grid_ref="grid_T_vsum2000"   detect_missing_value="true" />
+    <field id="e3t_700"      field_ref="e3t"                grid_ref="grid_T_zoom_700"       detect_missing_value="true" />
+    <field id="e3t_vsum700"  field_ref="e3t_700"            grid_ref="grid_T_vsum700"   detect_missing_value="true" />
     <field id="masscello"    long_name="Sea Water Mass per unit area"   standard_name="sea_water_mass_per_unit_area"   unit="kg/m2"   grid_ref="grid_T_3D"/>
     <field id="volcello"     long_name="Ocean Volume"                   standard_name="ocean_volume"   unit="m3"       grid_ref="grid_T_3D"/>
     <field id="toce"         long_name="temperature"                         standard_name="sea_water_potential_temperature"   unit="degC"     grid_ref="grid_T_3D"/>
     <field id="toce_e3t"     long_name="temperature (thickness weighted)"                                                      unit="degC"     grid_ref="grid_T_3D" > toce * e3t </field >
     <field id="soce"         long_name="salinity"                            standard_name="sea_water_practical_salinity"      unit="1e-3"     grid_ref="grid_T_3D"/>
     <field id="soce_e3t"     long_name="salinity    (thickness weighted)"                                                      unit="1e-3"     grid_ref="grid_T_3D" > soce * e3t </field >
+    <field id="soce_e3t_300"      field_ref="soce_e3t"          unit="1e-3"     grid_ref="grid_T_zoom_300"      detect_missing_value="true" />
+    <field id="soce_e3t_vsum300"  field_ref="soce_e3t_300"      unit="1e-3*m"  grid_ref="grid_T_vsum300"  detect_missing_value="true" />
+    <field id="soce_vmean300"     field_ref="soce_e3t_vsum300"  unit="1e-3"     grid_ref="grid_T_vsum300"  detect_missing_value="true" > soce_e3t_vsum300/e3t_vsum300 </field>
 
     <field id="toce_e3t_300"      field_ref="toce_e3t"          unit="degree_C"     grid_ref="grid_T_zoom_300"      detect_missing_value="true" />
-    <field id="toce_e3t_vsum300"  field_ref="toce_e3t_300"      unit="degress_C*m"  grid_ref="grid_T_vsum"  detect_missing_value="true" />
-    <field id="toce_vmean300"     field_ref="toce_e3t_vsum300"  unit="degree_C"     grid_ref="grid_T_vsum"  detect_missing_value="true" > toce_e3t_vsum300/e3t_vsum300 </field>
+    <field id="toce_e3t_vsum300"  field_ref="toce_e3t_300"      unit="degress_C*m"  grid_ref="grid_T_vsum300"  detect_missing_value="true" />
+    <field id="toce_vmean300"     field_ref="toce_e3t_vsum300"  unit="degree_C"     grid_ref="grid_T_vsum300"  detect_missing_value="true" > toce_e3t_vsum300/e3t_vsum300 </field>
 
+    <field id="toce_e3t_2000"      field_ref="toce_e3t"          unit="degree_C"     grid_ref="grid_T_zoom_2000"      detect_missing_value="true" />
+    <field id="toce_e3t_vsum2000"  field_ref="toce_e3t_2000"      unit="degress_C*m"  grid_ref="grid_T_vsum2000"  detect_missing_value="true" />
+    <field id="toce_vmean2000"     field_ref="toce_e3t_vsum2000"  unit="degree_C"     grid_ref="grid_T_vsum2000"  detect_missing_value="true" > toce_e3t_vsum2000/e3t_vsum2000 </field>
+
+    <field id="toce_e3t_700"      field_ref="toce_e3t"          unit="degree_C"     grid_ref="grid_T_zoom_700"      detect_missing_value="true" />
+    <field id="toce_e3t_vsum700"  field_ref="toce_e3t_700"      unit="degress_C*m"  grid_ref="grid_T_vsum700"  detect_missing_value="true" />
+    <field id="toce_vmean700"     field_ref="toce_e3t_vsum700"  unit="degree_C"     grid_ref="grid_T_vsum700"  detect_missing_value="true" > toce_e3t_vsum700/e3t_vsum700 </field>
     <!-- AGRIF sponge -->
     <field id="agrif_spt"         long_name=" AGRIF t-sponge coefficient"   unit=" " />
 
@@ -209,9 +223,13 @@ that are available in the tidal-forcing implementation (see
     <field id="BLT"          long_name="Barrier Layer Thickness"                                                                                                                          unit="m"   > topthdep - pycndep </field>
     <field id="tinv"         long_name="Max of vertical invertion of temperature"                                                                                                         unit="degC"                      />
     <field id="depti"        long_name="Depth of max. vert. inv. of temperature"                                                                                                          unit="m"                         />
-    <field id="20d"          long_name="Depth of 20C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   axis_ref="iax_20C" />
-    <field id="26d"          long_name="Depth of 26C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   axis_ref="iax_26C"   />
-    <field id="28d"          long_name="Depth of 28C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   axis_ref="iax_28C" />
+    <field id="14d"          long_name="Depth of 14C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
+    <field id="17d"          long_name="Depth of 17C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
+    <field id="20d"          long_name="Depth of 20C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
+<!---    <field id="26d"          long_name="Depth of 26C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   axis_ref="iax_26C"   />-->
+    <field id="26d"          long_name="Depth of 26C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
+    <field id="28d"          long_name="Depth of 28C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
+    <field id="hc40"        long_name="Heat content 0-40m"                            standard_name="integral_of_sea_water_potential_temperature_wrt_depth_expressed_as_heat_content"   unit="J/m2"                      />
     <field id="hc300"        long_name="Heat content 0-300m"                            standard_name="integral_of_sea_water_potential_temperature_wrt_depth_expressed_as_heat_content"   unit="J/m2"                      />
     <field id="hc700"        long_name="Heat content 0-700m"                            standard_name="integral_of_sea_water_potential_temperature_wrt_depth_expressed_as_heat_content"   unit="J/m2"                      />
     <field id="hc2000"       long_name="Heat content 0-2000m"                           standard_name="integral_of_sea_water_potential_temperature_wrt_depth_expressed_as_heat_content"   unit="J/m2"                      />
@@ -818,7 +836,7 @@ that are available in the tidal-forcing implementation (see
   <field id="ahmf_2d"      long_name=" surface f-eddy viscosity coefficient"   unit="m2/s or m4/s" />
   <field id="ahmf_3d"      long_name=" 3D      f-eddy viscosity coefficient"   unit="m2/s or m4/s"  grid_ref="grid_T_3D"/>
 
-  <field_group id="scalar"  grid_ref="grid_scalar"  >
+  <field_group id="scalar"  grid_ref="grid_1point"  >
     <!-- Need to have a salinity reference climatological file : sali_ref_clim_monthly -->
     <field id="voltot"     long_name="global total volume"                          standard_name="sea_water_volume"                               unit="m3"   />
     <field id="sshtot"     long_name="global mean ssh"                              standard_name="global_average_sea_level_change"                unit="m"    />
@@ -828,7 +846,9 @@ that are available in the tidal-forcing implementation (see
     <field id="temptot"    long_name="global mean temperature"                      standard_name="sea_water_potential_temperature"                unit="degC" />
     <field id="saltot"     long_name="global mean salinity"                         standard_name="sea_water_salinity"                             unit="1e-3" />
     <field id="ssttot"     long_name="global mean sea surface temperature"          standard_name="sea_water_conservative_temperature"             unit="degC" />
+  </field_group>
     <!-- EOS = TEOS-10 -->
+  <field_group id="scalar"  grid_ref="grid_scalar"  >
     <field id="temptot_pot" long_name="global mean potential temperature"            standard_name="sea_water_potential_temperature"               unit="degC" />
 
     <!-- available with ln_diahsb -->
@@ -1378,7 +1398,13 @@ that are available in the tidal-forcing implementation (see
     <field field_ref="voltot"              name="scvoltot"     />
     <field field_ref="saltot"              name="scsaltot"     />
     <field field_ref="temptot"             name="sctemtot"     />
+    <!-- ANTO  -->
+    <field field_ref="scsshtst"             name="zostoga"     />
   </field_group>
 
+  <field_group id="equatorial_3D" grid_ref="EquT_3D">
+    
+    <field id="toce"         long_name="temperature"                         standard_name="sea_water_potential_temperature"   unit="degC"/>
+  </field_group>
   
 </field_definition>
