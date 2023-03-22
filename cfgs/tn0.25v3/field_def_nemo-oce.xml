@@ -226,7 +226,6 @@ that are available in the tidal-forcing implementation (see
     <field id="14d"          long_name="Depth of 14C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
     <field id="17d"          long_name="Depth of 17C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
     <field id="20d"          long_name="Depth of 20C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
-<!---    <field id="26d"          long_name="Depth of 26C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   axis_ref="iax_26C"   />-->
     <field id="26d"          long_name="Depth of 26C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
     <field id="28d"          long_name="Depth of 28C isotherm"                          standard_name="depth_of_isosurface_of_sea_water_potential_temperature"                            unit="m"   />
     <field id="hc40"        long_name="Heat content 0-40m"                            standard_name="integral_of_sea_water_potential_temperature_wrt_depth_expressed_as_heat_content"   unit="J/m2"                      />
@@ -1398,7 +1397,6 @@ that are available in the tidal-forcing implementation (see
     <field field_ref="voltot"              name="scvoltot"     />
     <field field_ref="saltot"              name="scsaltot"     />
     <field field_ref="temptot"             name="sctemtot"     />
-    <!-- ANTO  -->
     <field field_ref="scsshtst"             name="zostoga"     />
   </field_group>
 
