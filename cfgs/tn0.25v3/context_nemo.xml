@@ -11,7 +11,7 @@
        <variable id="ref_month" type="int"> 01 </variable>
        <variable id="ref_day"   type="int"> 01 </variable>
        <variable id="rau0"      type="float" > 1026.0 </variable>
-       <variable id="cpocean"   type="float" > 3991.86795711963 </variable>
+       <variable id="cpocean"   type="float" > 3996.0 </variable>
        <variable id="convSpsu"  type="float" > 0.99530670233846  </variable>
        <variable id="rhoic"     type="float" > 917.0 </variable>
        <variable id="rhosn"     type="float" > 330.0 </variable>
