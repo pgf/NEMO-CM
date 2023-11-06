@@ -8,8 +8,7 @@
 ============================================================================================================
     -->
    
-    <file_definition type="one_file" name="@expname@_@freq@_@startdate@_@enddate@" sync_freq="5d" min_digits="4">
-    
+    <file_definition type="multiple_file" name="@expname@_@freq@_@startdate@_@enddate@" sync_freq="5d" min_digits="4">
       <file_group id="5d" output_freq="5d"  output_level="10" enabled=".TRUE."/>  <!-- 5d files -->   
 
       <file_group id="1m" output_freq="1mo" output_level="10" enabled=".TRUE."> <!-- real monthly files -->
@@ -62,6 +61,20 @@
 	  <field field_ref="avt"          name="difvho"   />
 	  <field field_ref="w_masstr"     name="vovematr" />
 	</file>
+
+        <file id="file15" name_suffix="_scalar" description="scalar variables" type="one_file" >
+          <field field_ref="masstot"      name="masso"  />
+          <field field_ref="voltot"       name="volo"  />
+          <field field_ref="sshsteric"    name="zostoga" />
+          <field field_ref="sshtot"       name="sshtot"  />
+          <field field_ref="bgtemper"     name="bgtemper"    />
+          <field field_ref="bgsaline"     name="bgsaline"    />
+          <field field_ref="bgheatco"     name="bgheatco"    />
+          <field field_ref="bgheatfx"     name="bgheatfx"    />
+          <field field_ref="bgsaltco"     name="bgsaltco"    />
+          <field field_ref="bgvolssh"     name="bgvolssh"    />
+          <field field_ref="bgvole3t"     name="bgvole3t"    />
+        </file>
 
       </file_group>
 
