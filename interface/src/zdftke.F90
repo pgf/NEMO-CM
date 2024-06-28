@@ -60,9 +60,6 @@ MODULE zdftke
    USE prtctl         ! Print control
    USE lib_fortran    ! Fortran utilities (allows no signed zero when 'key_nosignedzero' defined)
    USE sbcwave        ! Surface boundary waves
-#if defined CCSMCOUPLED
-   USE wrk_nemo       ! work arrays
-#endif
 
    IMPLICIT NONE
    PRIVATE
@@ -223,12 +220,11 @@ CONTAINS
       REAL(wp), DIMENSION(A2D(nn_hls),jpk) ::   zpelc, zdiag, zd_up, zd_lw
       REAL(wp), DIMENSION(:,:,:), ALLOCATABLE ::   ztmp ! for diags
 #if defined CCSMCOUPLED
-      REAL(wp), POINTER, DIMENSION(:,:  ) :: zfri
+      REAL(wp), DIMENSION(A2D(nn_hls)) :: zfri
 #endif
       !!--------------------------------------------------------------------
       !
 #if defined CCSMCOUPLED
-      CALL wrk_alloc( jpi,jpj, zfri )
       zfri(:,:) = fr_i(:,:)
       fr_i = 0.0_wp
 #endif
@@ -506,7 +502,6 @@ CONTAINS
       !
 #if defined CCSMCOUPLED
       fr_i(:,:) = zfri(:,:)
-      CALL wrk_dealloc( jpi,jpj, zfri )
 #endif
    END SUBROUTINE tke_tke
 

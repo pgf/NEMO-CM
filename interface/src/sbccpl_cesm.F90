@@ -25,7 +25,6 @@ MODULE sbccpl_cesm
    USE geo2ocean       ! 
    USE in_out_manager
    USE lib_fortran
-   USE wrk_nemo        ! work arrays
    USE sbcapr, ONLY : apr
    !!
    IMPLICIT NONE
@@ -65,7 +64,9 @@ MODULE sbccpl_cesm
    
    REAL(wp), SAVE :: garea
 
-#  include "vectopt_loop_substitute.h90"
+   !! * Substitutions
+   ! for DO macro
+#  include "do_loop_substitute.h90"
 
 CONTAINS
 
@@ -176,14 +177,12 @@ CONTAINS
       REAL(wp) :: zrnfex   ! excess runoff to be redistributed over E-P
       REAL(wp) :: tmpvar   ! excess runoff to be redistributed over E-P
       INTEGER  :: i, j     ! dummy loop index
-      REAL(wp), POINTER, DIMENSION(:,:) ::   ztx, zty, zcptn
+      REAL(wp), DIMENSION(A2D(nn_hls)) ::   ztx, zty, zcptn
 
       !IF (lwp) WRITE(numout,*) 'sbc_cpl_rcv: called ', kt, lrecv
 
       ! Return if this isn't a coupling time step
       IF (.NOT. lrecv) RETURN
-
-      CALL wrk_alloc( jpi,jpj, ztx, zty, zcptn )
 
       !  1. distribute wind stress
       !     rotate components to local coordinates
@@ -298,17 +297,16 @@ CONTAINS
 #endif
 
 !     update ghost cells for fluxes received from the coupler
-      call lbc_lnk( 'sbccpl_cesm', utau(:,:), 'U', -1._wp, vtau(:,:), 'U', -1._wp, apr(:,:),&  
-                &         'T', 1._wp, emp(:,:),  'T',  1._wp, sfx(:,:) , 'T',  1._wp, qsr(:,:),  'T', 1._wp,  &
-                &         qns(:,:),  'T',  1._wp, fr_i(:,:), 'T',  1._wp, wndm(:,:), 'T', 1._wp)
+      call lbc_lnk( 'sbccpl_cesm', utau(:,:), 'U', -1._wp, vtau(:,:), 'V', -1._wp, &
+        &         apr(:,:) , 'T', 1._wp, emp(:,:), 'T', 1._wp, sfx(:,:) , 'T', 1._wp, &
+        &         qsr(:,:) , 'T', 1._wp, qns(:,:), 'T', 1._wp, fr_i(:,:), 'T', 1._wp, &
+        &         wndm(:,:), 'T', 1._wp)
 
       IF ( ln_rnf ) call lbc_lnk('sbccpl_cesm', rnf(:,:),  'T', 1._wp)
 
 #if defined key_cpl_carbon_cycle
       call lbc_lnk('sbccpl_cesm', atm_co2(:,:), 'T', 1._wp)
 #endif
-
-      CALL wrk_dealloc( jpi,jpj, ztx, zty, zcptn )
 
       ! Reset coupling time step flag
       lrecv = .FALSE.

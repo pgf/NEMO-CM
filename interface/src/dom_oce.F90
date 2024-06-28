@@ -278,8 +278,8 @@ CONTAINS
       !!----------------------------------------------------------------------
       ii = 0   ;   ierr(:) = 0
       !
-      ii = ii+1
 #if defined CCSMCOUPLED
+      ii = ii+1
       ALLOCATE( tpol(jpiglo)  , fpol(jpiglo), &
          &      STAT=ierr(ii) )
 #endif
@@ -315,8 +315,6 @@ CONTAINS
       ii = ii+1
       ALLOCATE( r3t  (jpi,jpj,jpt) , r3u  (jpi,jpj,jpt) , r3v  (jpi,jpj,jpt) , r3f  (jpi,jpj) ,      &
          &      r3t_f(jpi,jpj)     , r3u_f(jpi,jpj)     , r3v_f(jpi,jpj)                      ,  STAT=ierr(ii) )
-         !
-      ii = ii+1
          !
 #elif defined key_linssh
          ! linear ssh no time varying coordinate arrays
