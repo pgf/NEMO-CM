@@ -431,12 +431,19 @@ CONTAINS
          
       ENDIF
       
-      IF( iom_use("v_masstr") .OR. iom_use("v_heattr") .OR. iom_use("v_salttr") ) THEN
+      IF( iom_use("v_masstr") .OR. iom_use("v_masstr_vint") .OR. iom_use("v_heattr") .OR. iom_use("v_salttr") ) THEN
          
          DO_3D( 0, 0, 0, 0, 1, jpk )
             z3d(ji,jj,jk) = rho0 * vv(ji,jj,jk,Kmm) * e1v(ji,jj) * e3v(ji,jj,jk,Kmm) * vmask(ji,jj,jk)
          END_3D
          CALL iom_put( "v_masstr", z3d )           ! mass transport in j-direction
+         IF( iom_use("v_masstr_vint") ) THEN
+            z2d(:,:) = 0._wp 
+            DO_3D( 0, 0, 0, 0, 1, jpkm1 )
+               z2d(ji,jj) = z2d(ji,jj) + z3d(ji,jj,jk)
+            END_3D
+            CALL iom_put( "v_masstr_vint", z2d )   ! mass transport in i-direction vertical sum
+         ENDIF
          
          IF( iom_use("v_heattr") ) THEN
             z2d(:,:) = 0._wp

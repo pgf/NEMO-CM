@@ -49,6 +49,7 @@ module ocn_comp_nuopc
   use lib_fortran
   use sbccpl_cesm
   use eosbn2
+  use timing
 #if defined key_qco   ||   defined key_linssh
    USE stpmlf         ! NEMO time-stepping               (stp_MLF   routine)
 #else
@@ -86,6 +87,8 @@ module ocn_comp_nuopc
   integer             :: flds_scalar_index_ny = 0
   integer             :: flds_scalar_index_precip_factor = 0
 
+  character(len=lc)   :: tfrz_option_driver    ! tfrz_option from driver
+
   integer, parameter  :: dbug = 1
   logical             :: ldiag_cpl = .false.
   character(len=lc) :: runtype
@@ -96,7 +99,8 @@ module ocn_comp_nuopc
 
   integer (i4)  ::   &
       istp,           & ! time step counter (from nit000 to nitend)
-      nn_ncpl           ! # of model time steps in 1 coupling time step
+      nn_ncpl,        & ! # of model time steps in 1 coupling time step
+      ndt05             ! half-time step
   integer :: nproc
   real(wp), parameter ::  c0 = 0.0_wp
   real(wp), parameter ::  c1 = 1.0_wp
@@ -135,19 +139,14 @@ module ocn_comp_nuopc
   real(wp), allocatable :: sbuff_sum_dhdy (:,:) !(nx_block,ny_block,max_blocks_clinic)
 !  real(r8) :: sbuff_sum_bld  (jpi,jpj) !(nx_block,ny_block,max_blocks_clinic)
   real(wp), allocatable :: sbuff_sum_co2  (:,:) !(nx_block,ny_block,max_blocks_clinic)
-  real(wp), allocatable :: sbuff_sum_t_depth (:,:,:)
-  real(wp), allocatable :: sbuff_sum_s_depth (:,:,:)
+  !real(wp), allocatable :: sbuff_sum_t_depth (:,:,:)
+  !real(wp), allocatable :: sbuff_sum_s_depth (:,:,:)
 
   ! tlast_coupled is incremented by delt every time pop_sum_buffer is called
   ! tlast_coupled is reset to 0 when ocn_export is called
   real (wp) :: tlast_coupled
 
   real (wp), save ::  area
-
-  integer(i4)  :: lnldi, lnlei, lnldj, lnlej ! local copy of the interior domain indices
-  integer(i4)  :: lnictls, lnictle, lnjctls, lnjctle  ! local copy of global indices
-  integer(i4)  :: ljpiglo, ljpjglo           ! local copy of the global domain dimensions 
-  integer(i4)  :: nThreads        ! number of threads per mpi task for this component
 
 !=======================================================================
 contains
@@ -308,6 +307,17 @@ contains
 !       call ESMF_LogWrite(trim(subname)//' : flds_scalar_index_precip_factor = '//trim(logmsg), ESMF_LOGMSG_INFO)
 !    end if
 
+    ! Form of ocean freezing temperature
+    ! 'minus1p8' = -1.8 C
+    ! 'linear_salt' = -depressT * sss
+    ! 'mushy' conforms with ktherm=2
+    call NUOPC_CompAttributeGet(gcomp, name="tfreeze_option", value=tfrz_option_driver, &
+         isPresent=isPresent, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (.not. isPresent) then
+       tfrz_option_driver = 'linear_salt'
+    end if
+
     ! Advertise fields
     call ocn_advertise_fields(gcomp, importState, exportState, flds_scalar_name, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -347,34 +357,30 @@ contains
     integer , allocatable   :: gindex_ocn(:)
     integer , allocatable   :: gindex_elim(:)
     integer , allocatable   :: gindex(:)
-    integer                 :: globalID
+    !integer                 :: globalID
     character(CL)           :: cvalue
     integer                 :: num_elim_global
-    integer                 :: num_elim_local
-    integer                 :: num_elim
-    integer                 :: num_ocn
-    integer                 :: num_gidx
-    integer                 :: num_elim_gcells ! local number of eliminated gridcells
-    integer                 :: num_elim_blocks ! local number of eliminated blocks
-    integer                 :: num_total_blocks
-    integer                 :: my_elim_start
-    integer                 :: my_elim_end
+    !integer                 :: num_elim_local
+    !integer                 :: num_elim
+    !integer                 :: num_ocn
+    !integer                 :: num_gidx
+    !integer                 :: num_elim_gcells ! local number of eliminated gridcells
+    !integer                 :: num_elim_blocks ! local number of eliminated blocks
+    !integer                 :: num_total_blocks
+    !integer                 :: my_elim_start
+    !integer                 :: my_elim_end
     integer(i4)             :: lsize, lsizeL
     integer(i4)             :: shrlogunit      ! old values
     integer(i4)             :: iam
     character(len=32)       :: starttype
-    integer                 :: n,i,j,iblk,jblk,ig,jg
+    integer                 :: n,i,j,l
     integer                 :: lbnum
     integer(i4)             :: errorCode       ! error code
     character(len=*), parameter  :: subname = "ocn_comp_nuopc:(InitializeRealize)"
     logical                 :: mpp_ocn
     integer(i4)             :: gsize
-    integer(i4)             :: lnldiL, lnleiL, lnldjL, lnlejL ! local copy of the land domain indices
-    integer(i4)             :: lnictlsL, lnictleL, lnjctlsL, lnjctleL ! local copy of global indices
-    logical, parameter      :: lnohalo = .false.
-    integer(i4)             :: lnlon, lnlat               ! local domain dimensions 
-    integer(i4)             :: lnlonL, lnlatL             ! local domain dimensions 
     integer(i4)             :: ier
+    INTEGER                 :: inum            ! logical unit
 
     !-----------------------------------------------------------------------
 
@@ -428,7 +434,6 @@ contains
        runtype = "continue"
     else
        write(numout,*) 'ocn_comp_nuopc: ERROR: unknown starttype'
-       !call exit_POP(sigAbort,' ocn_comp_nuopc: ERROR: unknown starttype')
        call shr_sys_abort('ocn_comp_nuopc: ERROR: unknown starttype')
     end if
 
@@ -480,177 +485,171 @@ contains
     endif
 
     ! Global domain size
-    ljpiglo = Ni0glo
-    ljpjglo = Nj0glo
-    if (lnohalo) then                ! remove the extra halo
-      ljpiglo = ljpiglo-2*nn_hls     ! East-West halo
-      ljpjglo = ljpjglo-nn_hls       ! North halo
-    end if
-    gsize = ljpiglo*ljpjglo   ! Number of grid points for the global domain
-
-    ! Local domain interior indeces
-    lnldi = Nis0
-    lnldj = Njs0
-    lnlei = Nie0
-    lnlej = Nje0
-
-    ! Global domain location of the interior indeces
-    lnictls = Nis0 + nimpp - 1 - nn_hls
-    lnictle = Nie0 + nimpp - 1 - nn_hls
-    lnjctls = Njs0 + njmpp - 1 - nn_hls
-    lnjctle = Nje0 + njmpp - 1 - nn_hls
-
-    if (lnohalo) then      ! remove the extra halo
-      if (lnictls==1) then
-         lnldi=lnldi+1  ! West  halo
-      end if
-      if (lnictle==Ni0glo) then
-         lnlei=lnlei-1  ! East  halo
-      end if
-      if (lnjctle==Nj0glo) then
-         lnlej=lnlej-1  ! North halo
-      end if
-    end if
+    gsize = Ni0glo*Nj0glo   ! Number of grid points for the global domain (w/o halo)
 
     ! Local domain size
-    lnlon = lnlei-lnldi+1
-    lnlat = lnlej-lnldj+1
-    lsize = lnlon*lnlat     ! Number of grid points for the local domain
+    lsize = Ni_0*Nj_0     ! Number of grid points for the local domain
 
+    n = 0
     if ((lsize<=0).or.(lsize>gsize)) then
-       write(message,FMT='(A,I)')     &
-          'ocn_comp_nuopc: InitializeRealize: wrong local size: lsize=', lsize
+       n = 1
+       write(message,FMT='(2(A,I))')     &
+          'ocn_comp_nuopc: InitializeRealize: wrong local size: lsize=', lsize, &
+          ' nproc=', nproc
+    end if
+    if (lk_mpp) call mpp_max('ocn_comp_nuopc',n)
+    if (n>0) then
+       if (lk_mpp) call mppsync       ! sync PEs
        call shr_sys_abort(message)
     end if
 
     n = lsize
     call mpp_sum('ocn_comp_nuopc',n)
-    if (gsize /= n .and. .NOT. mpp_ocn ) then
-       write(numout,FMT='(A)') 'ocn_comp_nuopc: InitializeRealize: number of points in the global domain'
-       write(numout,FMT='(2(A,I))') ' gsize=', gsize, ' mpp_sum(lsize)=', n
-       if (lk_mpp) call mppsync       ! sync PEs
-       call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: mpp_sum(lsize) /= gsize !')
-    elseif (gsize /= n .and. mpp_ocn .and. lwp ) then
-       write(numout,FMT='(A)') 'ocn_comp_nuopc: InitializeRealize: NEMO is using ocean only domains (mpp_init2)'
-       write(numout,FMT='(2(A,I))') ' gsize=', gsize, ' mpp_sum(lsize)=', n
-       write(numout,FMT='(2(A,I))') ' jpnij=', jpnij, ' < jpni * jpnj=', jpni * jpnj
+    num_elim_global = gsize - n
+    if (gsize /= n) then
+       if (mpp_ocn ) then
+          if (lwp) then
+             write(numout,FMT='(A)') 'ocn_comp_nuopc: InitializeRealize: NEMO is using ocean only domains (mpp_init2)'
+             write(numout,FMT='(2(A,I))') ' gsize=', gsize, ' mpp_sum(lsize)=', n
+             write(numout,FMT='(2(A,I))') ' jpnij=', jpnij, ' < jpni * jpnj=', jpni * jpnj
+          end if
+       else
+          write(numout,FMT='(A)') 'ocn_comp_nuopc: InitializeRealize: number of points in the global domain'
+          write(numout,FMT='(2(A,I))') ' gsize=', gsize, ' mpp_sum(lsize)=', n
+          if (lk_mpp) call mppsync       ! sync PEs
+          call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: mpp_sum(lsize) /= gsize !')
+       end if
+    else
+       if (lwp) &
+         write(numout,*) 'ocn_comp_nuopc: InitializeRealize: mpp_sum(lsize)=', n
     end if
-    if (lwp) &
-      write(*,*) 'ocn_comp_nuopc: InitializeRealize: mpp_sum(lsize)=', n
-
-    allocate(gindex_ocn(lsize),stat=ier)
+    !
+    allocate(gindex_ocn(lsize), stat=ier)
+    ier = ABS(ier)
+    if (lk_mpp) call mpp_max('ocn_comp_nuopc',ier)
     if (ier/=0) then
        if (lk_mpp) call mppsync       ! sync PEs
        call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: failed allocation (gindex_ocn)!')
     end if
     gindex_ocn(:) = 0
-
-    num_elim_global = gsize - n
-
+    !
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       l = (mjg0(j)-1)*Ni0glo
+       do i=Nis0,Nie0
           n=n+1
-          gindex_ocn(n) = (i + nimpp - 1 - 2*nn_hls) + (njmpp + j - 1 - 2*nn_hls)*ljpiglo + 1
-          if (gindex_ocn(n)>gsize) then
-             write(numout,*) nimpp, njmpp, i, j, gindex_ocn(n)
-             if (lk_mpp) call mppsync       ! sync PEs
-             call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: in InitializeRealize gindex_ocn>gsize!')
-          end if
+          gindex_ocn(n) = l + mig0(i)
        enddo
     enddo
 
+    n = 0
     if (any(gindex_ocn(:)<0)) then
+       n = 1
+    end if
+    if (lk_mpp) call mpp_max('ocn_comp_nuopc',n)
+    if (n>0) then
        if (lk_mpp) call mppsync       ! sync PEs
        call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: in InitializeRealize gindex_ocn<0!')
-    end if
+     end if
 
+    n = 0
     if (any(gindex_ocn(:)>gsize)) then
-       write(*,*) gindex_ocn(:)
+       n = 1
+    end if
+    if (lk_mpp) call mpp_max('ocn_comp_nuopc',n)
+    if (n>0) then
        if (lk_mpp) call mppsync       ! sync PEs
        call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: in InitializeRealize gindex_ocn>gsize!')
     end if
 
-    if (num_elim_global > 0) then
-
-      ! Local domain interior indeces
-      lnldiL = Nis0L
-      lnldjL = Njs0L
-      lnleiL = Nie0L
-      lnlejL = Nje0L
-      ! Global domain location of the interior indeces
-      lnictlsL = Nis0L + nimppL - 1 - nn_hls
-      lnictleL = Nie0L + nimppL - 1 - nn_hls
-      lnjctlsL = Njs0L + njmppL - 1 - nn_hls
-      lnjctleL = Nje0L + njmppL - 1 - nn_hls
-      if (lnohalo) then      ! remove the extra halo
-        if (lnictlsL==1) then
-           lnldiL=lnldiL+1  ! West  halo
-        end if
-        if (lnictleL==Ni0glo) then
-           lnleiL=lnleiL-1  ! East  halo
-        end if
-        if (lnjctleL==Nj0glo) then
-           lnlejL=lnlejL-1  ! North halo
-        end if
-      end if
-      if (lnldiL > 0 .and. lnldjL > 0) then
-         lnlonL = lnleiL-lnldiL+1
-         lnlatL = lnlejL-lnldjL+1
-         lsizeL = lnlonL*lnlatL     ! Number of grid points for the local domain
+    ! Take into account suppressed land-only subdomains
+    n = 0
+    if (numsls>0) then
+      !
+      if (narea <= numsls) then    ! This process handles one of the suppressed land-only subdomains
+         ! Number of grid points of the associated suppressed land-only subdomains
+         lsizeL = (Nie0L-Nis0L+1)*(Nje0L-Njs0L+1)
       else
          lsizeL = 0
       end if
-      ! compute total number of land points
+      lsizeL = MAX(0, lsizeL)
+      ! compute total number of grid points belogning to suppressed land-only subdomains
       n = lsizeL
-      call mpp_sum('ocn_comp_nuopc',n)
-      write(numout,*) 'ocn_comp_nuopc: InitializeRealize: land points used in gindex_elim'
-      write(numout,*) 'Expected value ', num_elim_global, ' computed value ', n
-      ! allocate gindex_elim
-      allocate(gindex_elim(lsizeL),stat=ier)
-      if (ier/=0) then
-         if (lk_mpp) call mppsync       ! sync PEs
-         call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: failed allocation (gindex_elim)!')
+      if (lk_mpp) call mpp_sum('ocn_comp_nuopc',n)
+      if (lwp) then
+         write(numout,*) 'ocn_comp_nuopc: InitializeRealize: land points used in gindex_elim'
+         write(numout,*) 'Expected value ', num_elim_global, ' computed value ', n
       end if
-      gindex_elim(:) = 0
-      ! add values to gindex_elim
+
       n = 0
-      do j=lnldjL,lnlejL
-         do i=lnldiL,lnleiL
-            n=n+1
-            gindex_elim(n) = (i + nimppL - 1 - 2*nn_hls) + (njmppL + j - 1 - 2*nn_hls)*ljpiglo + 1
-            if (gindex_elim(n)>gsize) then
-               write(numout,*) nimppL, njmppL, i, j, gindex_elim(n)
-               if (lk_mpp) call mppsync       ! sync PEs
-               call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: in InitializeRealize gindex_elim>gsize!')
-            end if
+      if (narea <= numsls) then    ! This process handles one of the suppressed land-only subdomains
+         ! allocate gindex_elim
+         allocate(gindex_elim(lsizeL))
+         gindex_elim(:) = 0
+         ! add values to gindex_elim
+         n = 0
+         do j=Njs0L,Nje0L
+            l = ((j + njmppL - 1 - nn_hls)-1)*Ni0glo
+            do i=Nis0L,Nie0L
+               n=n+1
+               gindex_elim(n) = l + (i + nimppL - 1 - nn_hls)
+            enddo
          enddo
-      enddo
+         !
+         n = 0
+         if (any(gindex_elim(:)<0)) then
+            n = 1
+         end if
+      end if
 
-!       ! create a global index that includes both active and eliminated gridcells
-       num_ocn  = size(gindex_ocn)
-       num_elim = size(gindex_elim)
-       allocate(gindex(num_elim + num_ocn))
-       do n = 1,num_ocn
-          gindex(n) = gindex_ocn(n)
-       end do
-       do n = num_ocn+1,num_ocn+num_elim
-          gindex(n) = gindex_elim(n-num_ocn)
-       end do
+      if (lk_mpp) call mpp_max('ocn_comp_nuopc',n)
+      if (n>0) then
+         if (lk_mpp) call mppsync       ! sync PEs
+         call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: in InitializeRealize gindex_elim<0!')
+      end if
 
-       deallocate(gindex_elim)
-       deallocate(gindex_ocn)
+      n = 0
+      if (narea <= numsls) then    ! This process handles one of the suppressed land-only subdomains
+         n = 0
+         if (any(gindex_elim(:)>gsize)) then
+            n = 1
+         end if
+      end if
 
-    else
+      if (lk_mpp) call mpp_max('ocn_comp_nuopc',n)
+      if (n>0) then
+         if (lk_mpp) call mppsync       ! sync PEs
+         call shr_sys_abort('ocn_comp_nuopc: InitializeRealize: in InitializeRealize gindex_elim>gsize!')
+      end if
+          !
+      if (narea <= numsls) then    ! This process handles one of the suppressed land-only subdomains
 
-       ! No eliminated land blocks
-       num_ocn = size(gindex_ocn)
-       allocate(gindex(num_ocn))
-       do n = 1,num_ocn
-          gindex(n) = gindex_ocn(n)
-       end do
+          ! create a global index that includes both active and eliminated gridcells
+          allocate(gindex(lsize + lsizeL))
+          !
+          gindex(:lsize) = gindex_ocn(:lsize)
+          gindex(lsize+1:lsize+lsizeL) = gindex_elim(:lsizeL)
+          !
+          deallocate(gindex_elim)
+          !
+        else    ! This process does not handle suppressed land-only subdomains
+          !
+          allocate(gindex(lsize))
+          !
+          gindex(:) = gindex_ocn(:)
 
+       end if
+
+    else    ! No suppressed land-only subdomains
+       !
+       allocate(gindex(lsize))
+       !
+       gindex(:) = gindex_ocn(:)
+       !
     end if
+    !
+    deallocate(gindex_ocn)
+    !
 
     !---------------------------------------------------------------------------
     ! Create NEMO Mesh from SCRIP file and dist grid
@@ -677,6 +676,8 @@ contains
 
     call ESMF_MeshDestroy(tmpMesh, rc=rc) 
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    deallocate(gindex)
 
     if (nproc==0) then
        write(numout,*)'mesh file for nemo domain is ',trim(cvalue)
@@ -750,6 +751,7 @@ contains
 
     ! Initialize the model time step
     istp = nit000
+    ndt05 = NINT( 0.5 * rn_Dt )
 
     !--------------------------------
     ! Reset shr logging to my log file
@@ -769,7 +771,7 @@ contains
 
     call sbc_cpl_cesm_init
  
-    call init_qflxice
+    call init_qflxice(tfrz_option_driver)
 
     call t_stopf ('nemo_cesm_init')
 
@@ -822,9 +824,10 @@ contains
           endif
        end if
 #ifndef _HIRES 
-       if (nsec_day /= start_tod) then
+       n = MOD(nsec_year-ndt05, NINT(rday))
+       if (n /= start_tod) then
           if (lwp) then
-             write(numout,fmt='(A,I)') 'DataInitialize: nsec      ', nsec_day
+             write(numout,fmt='(A,I)') 'DataInitialize: nsec      ', n
              write(numout,fmt='(A,I)') 'DataInitialize: start_tod ', start_tod
           end if
        end if
@@ -928,12 +931,12 @@ contains
     endif
 
 !    call State_SetScalar(dble(nx_global), flds_scalar_index_nx, exportState, &
-    call State_SetScalar(dble(ljpiglo), flds_scalar_index_nx, exportState, &
+    call State_SetScalar(dble(Ni0glo), flds_scalar_index_nx, exportState, &
          flds_scalar_name, flds_scalar_num, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
 !    call State_SetScalar(dble(ny_global), flds_scalar_index_ny, exportState, &
-    call State_SetScalar(dble(ljpjglo), flds_scalar_index_ny, exportState, &
+    call State_SetScalar(dble(Nj0glo), flds_scalar_index_ny, exportState, &
          flds_scalar_name, flds_scalar_num, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
@@ -1524,12 +1527,12 @@ nproc = narea - 1
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     !if (mastertask) then
-    if (nproc == 0) then
-       write(numout,*)' CheckImport nemo year = ',yy
-       write(numout,*)' CheckImport nemo mon  = ',mon
-       write(numout,*)' CheckImport nemo day  = ',day
-       write(numout,*)' CheckImport nemo tod  = ',tod
-    end if
+    !if (nproc == 0) then
+    !   write(numout,*)' CheckImport nemo year = ',yy
+    !   write(numout,*)' CheckImport nemo mon  = ',mon
+    !   write(numout,*)' CheckImport nemo day  = ',day
+    !   write(numout,*)' CheckImport nemo tod  = ',tod
+    !end if
 
     call ESMF_VMLogMemInfo("Leaving  "//trim(subname))
 
@@ -1571,10 +1574,15 @@ nproc = narea - 1
        write(numout,*) nstop, 'error have been found'
     endif
     !
-    CALL iom_context_finalize( cxios_context )   ! Finalize xios files
-    IF( ln_crs ) CALL iom_context_finalize( trim(cxios_context)//"_crs" ) !
+    !CALL iom_context_finalize( cxios_context )   ! Finalize xios files
+    !IF( ln_crs ) CALL iom_context_finalize( trim(cxios_context)//"_crs" ) !
+    !
+    IF ( ln_timing ) CALL timing_finalize
     !
     call nemo_closefile
+#if defined key_xios
+    CALL xios_finalize  ! end mpp communications with xios
+#endif
     !
     ! Free allocated space
     call sbc_cpl_cesm_finalize
@@ -1788,7 +1796,7 @@ nproc = narea - 1
     real(wp), allocatable :: mesh_areas(:)
     real(wp), allocatable :: model_areas(:)
     real(wp), pointer     :: dataptr(:)
-    integer               :: num_ocn
+    !integer               :: num_ocn
     real(wp)              :: max_mod2med_areacor
     real(wp)              :: max_med2mod_areacor
     real(wp)              :: min_mod2med_areacor
@@ -1802,6 +1810,7 @@ nproc = narea - 1
     real(wp), pointer     :: lonModel(:), lonMesh(:)
     real(wp)              :: diff_lon
     real(wp)              :: diff_lat
+    logical               :: labort_lon, labort_lat
     type(ESMF_StateItem_Flag) :: itemflag
     character(len=*), parameter :: subname='(ocn_import_export:realize_fields)'
     !---------------------------------------------------------------------------
@@ -1849,12 +1858,17 @@ nproc = narea - 1
        latMesh(n) = ownedElemCoords(2*n)
     end do
     deallocate(ownedElemCoords)
+    lonModel(:) = c0
+    latModel(:) = c0
 
     ! Compare mesh lats/lons to model generated lats/lons
+    labort_lon = .false.
+    labort_lat = .false.
     n = 0
-    do j=lnldj,lnlej  
-      do i=lnldi,lnlei 
-             n = n+1
+    do j=Njs0,Nje0  
+      do i=Nis0,Nie0 
+         n = n+1
+         if (tmask(i,j,1)==1) then
              lonModel(n) = glamt(i,j)
              if (lonModel(n)<c0) then
                lonModel(n) = lonModel(n) + 360.0_wp
@@ -1863,19 +1877,38 @@ nproc = narea - 1
              diff_lon = abs(lonMesh(n) - lonModel(n))
              if ( (diff_lon > 1.e2  .and. abs(diff_lon - 360.) > 1.e-1) .or.&
                   (diff_lon > 1.e-3 .and. diff_lon < c1) ) then
-                write(6,'(a,2(i6,3x),2(f21.13,3x),d21.5)') &
-                     'ERROR: NEMO nproc, n, lonMesh, lonModel, diff_lon = ',&
-                     nproc, n,lonMesh(n),lonModel(n), diff_lon
-                call shr_sys_abort()
+                write(numout,'(a,4(i6,3x),2(f21.13,3x),d21.5)') &
+                     'ERROR: NEMO nproc, n, i, j, lonMesh, lonModel, diff_lon = ',&
+                     nproc, n, i, j,lonMesh(n),lonModel(n), diff_lon
+                labort_lon = .true.
              end if
              if (abs(latMesh(n) - latModel(n)) > 1.e-1) then
-                write(6,'(a,2(i6,3x),2(f21.13,3x),d21.5)') &
-                     'ERROR: NEMO nproc, n, latMesh, latModel, diff_lat = ', &
-                     nproc, n,latMesh(n),latModel(n), abs(latMesh(n)-latModel(n))
-                call shr_sys_abort()
+                write(numout,'(a,4(i6,3x),2(f21.13,3x),d21.5)') &
+                     'ERROR: NEMO nproc, n, i, j, latMesh, latModel, diff_lat = ', &
+                     nproc, n, i, j,latMesh(n),latModel(n), abs(latMesh(n)-latModel(n))
+                labort_lat = .true.
              end if
+          end if
        enddo
     enddo
+    deallocate(lonMesh, latMesh, lonModel, latModel)
+
+    n = 0
+    if (labort_lon .or. labort_lat) then
+       n = 1
+       write(numout,'(a)') &
+             'ERROR: NEMO nproc, numOwnedElements, jpi, jpj, Ni_0, Nj_0, Nis0, Nie0, Njs0, Nje0 = '
+       write(numout,'(10(i8,1x))') &
+              nproc, numOwnedElements, jpi, jpj, Ni_0, Nj_0, Nis0, Nie0, Njs0, Nje0  
+       write(numout,'(a)') &
+         '========================================================================================================'
+       call flush(numout)
+    endif
+    if ( lk_mpp ) call mpp_max('ocn_comp_nuopc', n )
+    if (n>0) then
+       call mppsync()
+       call shr_sys_abort(subname//': coordinates missmatch!')
+    end if
 
     ! Determine mesh areas used in regridding
     lfield = ESMF_FieldCreate(mesh, ESMF_TYPEKIND_R8 , meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
@@ -1896,8 +1929,8 @@ nproc = narea - 1
     mod2med_areacor(:) = 1._wp
     med2mod_areacor(:) = 1._wp
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
              n = n+1
              model_areas(n) = e1e2t(i,j)/(ra*ra)
              mod2med_areacor(n) = model_areas(n) / mesh_areas(n)
@@ -2041,9 +2074,13 @@ nproc = narea - 1
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call state_getfldptr(importState, 'Foxx_tauy', foxx_tauy, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    taux_x2o(:,:) = c0
+    tauy_x2o(:,:) = c0
+
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
              n = n + 1
              taux_x2o(i,j)  = foxx_taux(n) * med2mod_areacor(n)
              tauy_x2o(i,j)  = foxx_tauy(n) * med2mod_areacor(n)
@@ -2074,9 +2111,16 @@ nproc = narea - 1
     call state_getfldptr(importState, 'So_duu10n', so_duu10n, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    evap_x2o(:,:)   = c0
+    sen_x2o(:,:)    = c0
+    lat_x2o(:,:)    = c0
+    lwup_x2o(:,:)   = c0
+    swnet_x2o(:,:)  = c0
+    duu10n_x2o(:,:) = c0
+
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
              n = n + 1
              evap_x2o(i,j) = foxx_evap(n) * med2mod_areacor(n)
              sen_x2o(i,j) = foxx_sen(n) * med2mod_areacor(n)
@@ -2087,8 +2131,8 @@ nproc = narea - 1
        end do
     end do
     if (ANY(swnet_x2o < qsw_eps)) then
-       do j=lnldj,lnlej
-          do i=lnldi,lnlei
+       do j=Njs0,Nje0
+          do i=Nis0,Nie0
                 write(6,*)'ERROR: j,i,swnet_x2o = ',&
                      j,i,swnet_x2o(i,j)
           enddo
@@ -2113,9 +2157,14 @@ nproc = narea - 1
     call state_getfldptr(importState, 'Faxa_lwdn', faxa_lwdn, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    pslv_x2o(:,:) = c0
+    snow_x2o(:,:) = c0
+    rain_x2o(:,:) = c0
+    lwdn_x2o(:,:) = c0
+
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
              n = n+1
              pslv_x2o(i,j) = sa_pslv(n) 
              snow_x2o(i,j) = faxa_snow(n) * med2mod_areacor(n)
@@ -2141,9 +2190,14 @@ nproc = narea - 1
     call state_getfldptr(importState, 'Fioi_meltw', fioi_meltw, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    ifrac_x2o(:,:) = c0
+    melth_x2o(:,:) = c0
+    meltw_x2o(:,:) = c0
+    salt_x2o(:,:)  = c0
+
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
              n = n + 1
              ifrac_x2o(i,j) = si_ifrac(n) 
              melth_x2o(i,j) = fioi_melth(n) * med2mod_areacor(n)
@@ -2166,24 +2220,43 @@ nproc = narea - 1
     ! ice runoff flux (kg/m2/s)
     call state_getfldptr(importState, 'Foxx_rofi', foxx_rofi, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    roff_x2o(:,:) = c0
+    ioff_x2o(:,:) = c0
+
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
              n = n+1
              roff_x2o(i,j) = foxx_rofl(n) * med2mod_areacor(n)
              ioff_x2o(i,j) = foxx_rofi(n) * med2mod_areacor(n)
        end do
     end do
-    if (ANY(ioff_x2o < c0)) then
-       do j=lnldj,lnlej
-          do i=lnldi,lnlei
-                write(6,*)'ERROR: j,i,ioff_x2o = ',&
+    !roff_x2o = MAX(roff_x2o, 0.0_wp)
+    !ioff_x2o = MAX(ioff_x2o, 0.0_wp)
+    if (ANY(roff_x2o(:,:)*tmask(:,:,1) < c0)) then
+       do j=Njs0,Nje0
+          do i=Nis0,Nie0
+             if (tmask(i,j,1)==1 .and. roff_x2o(i,j) < c0) then
+                write(numout,*)'ERROR: j,i,roff_x2o = ',&
+                     j,i,roff_x2o(i,j)
+             end if
+          enddo
+       enddo
+       call shr_sys_abort('(set_surface_forcing) ERROR: roff_x2o is negative')
+    endif
+
+    if (ANY(ioff_x2o(:,:)*tmask(:,:,1) < c0)) then
+       do j=Njs0,Nje0
+          do i=Nis0,Nie0
+             if (tmask(i,j,1)==1 .and. ioff_x2o(i,j) < c0) then
+                write(numout,*)'ERROR: j,i,ioff_x2o = ',&
                      j,i,ioff_x2o(i,j)
+             end if
           enddo
        enddo
        call shr_sys_abort('(set_surface_forcing) ERROR: ioff_x2o is negative')
     endif
-
 
     !-----------------------------------------------------------------------
     ! CO2 from atm
@@ -2194,10 +2267,11 @@ nproc = narea - 1
     if (itemFlag /= ESMF_STATEITEM_NOTFOUND) then
        call state_getimport(importState, 'Sa_co2prog', work1, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       co2_x2o(:,:) = c0
        if (work1 > 0) then
           n = 0
-          do j=lnldj,lnlej
-            do i=lnldi,lnlei
+          do j=Njs0,Nje0
+            do i=Nis0,Nie0
               n = n + 1
               co2_x2o(i,j) = work1(i,j) 
             enddo
@@ -2209,10 +2283,11 @@ nproc = narea - 1
     if (itemFlag /= ESMF_STATEITEM_NOTFOUND) then
        call state_getimport(importState, 'Sa_co2diag', work1, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       co2_x2o(:,:) = c0
        if (work1 > 0) then
          n = 0
-         do j=lnldj,lnlej
-            do i=lnldi,lnlei
+         do j=Njs0,Nje0
+            do i=Nis0,Nie0
                n = n + 1
                co2_x2o(i,j) = work1(i,j) 
             enddo
@@ -2254,8 +2329,8 @@ nproc = narea - 1
              call state_getfldptr(importState, trim(fieldNameList(nfld)), dataPtr1d, rc)
              if (ChkErr(rc,__LINE__,u_FILE_u)) return
              n = 0
-             do j = lnldj,lnlej !1, jpj !lnldj,lnlej
-                do i = lnldi,lnlei
+             do j = Njs0,Nje0 !1, jpj !Njs0,Nje0
+                do i = Nis0,Nie0
                     n = n + 1
                     work1(i,j) = dataPtr1d(n)
                 end do
@@ -2264,7 +2339,6 @@ nproc = narea - 1
              if (trim(fieldNameList(nfld))=='Foxx_taux' .or. trim(fieldNameList(nfld))=='Foxx_tauy') then
                 sgn = -1._wp
              end if
-             call lbc_lnk('ocn_comp_nuopc', WORK1, 'T', sgn)
 
              gsum = glob_sum('ocn_comp_nuopc', WORK1(:,:)*e1e2t(:,:))
 
@@ -2303,14 +2377,13 @@ nproc = narea - 1
     integer            , intent(out) :: rc         ! returned error code
 
     ! local variables
-    integer (i4)         :: n,i,j,k,nfld,lev
+    integer (i4)         :: n,i,j,nfld !,lev
     character (len=lc)   :: label
     real (wp)            :: work1(jpi,jpj)
     real (wp)            :: work2(jpi,jpj)
     real (wp)            :: work3(jpi,jpj)
     real (wp)            :: work4(jpi,jpj)
     real (wp)            :: worka(jpi,jpj)
-    real (wp), allocatable :: zbot(:,:)
     real (wp)            :: sgn
     real (wp)            :: gsum
     real (wp)            :: rtmp1, rtmp2
@@ -2318,16 +2391,11 @@ nproc = narea - 1
     real (wp), pointer   :: dataptr2(:)
     real (wp), pointer   :: dataptr2d(:,:)
     integer (i4)         :: fieldCount
-    integer              :: numbot = -1
     character (len=lc), allocatable :: fieldNameList(:)
     character(len=*), parameter :: subname='(ocn_import_export:ocn_export)'
     logical              :: l_export
     logical, save        :: lfirst = .true.
     integer, dimension(jpi,jpj) :: iktop, ikbot          ! sea surface gradient
-    integer :: tmpLNj, tmpLNi
-    integer :: countOCN
-    integer :: lnictls2
-    integer :: sizDTPTR1
     !-----------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -2346,35 +2414,13 @@ nproc = narea - 1
     call state_getfldptr(exportState, 'So_omask', dataPtr1, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     dataptr1(:) = c0
-    sizDTPTR1 = size(dataptr1)
     n = 0
-    countOCN=0
-    if(lnictle==Ni0glo) then
-       tmpLNi = jpi-1-nn_hls
-    else
-       tmpLNi = jpi-nn_hls
-    end if
-    if(lnjctle==Nj0glo) then
-       tmpLNj = jpj-1-nn_hls
-    else
-       tmpLNj = jpj-nn_hls
-    end if
-    allocate(zbot(tmpLNi,tmpLNj))
-    CALL iom_open( cn_domcfg,    numbot )
-    CALL iom_get( numbot, jpdom_unknown, 'bottom_level', zbot, kstart = (/lnictls,lnjctls/), kcount = (/tmpLNi, tmpLNj/) )
-    CALL iom_close(numbot)
-    do j=lnldj-1,lnlej-1
-       do i=lnldi-1,lnlei-1
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
           n = n+1
-          dataptr1(n) = zbot(i,j)
-          if (dataptr1(n) >= 1.0_wp) dataptr1(n) = 1.0_wp 
-          if (dataptr1(n) >= 1.0_wp) countOCN = countOCN + 1
-          if( mjg0(j) == Nj0glo-nn_hls ) then
-             dataptr1(n) = dataptr1(n) * tpol(mig0(i)) 
-          end if
+          dataptr1(n) = tmask_i(i,j)
        enddo
     enddo
-    deallocate(zbot)
 
     !-----------------------------------------------------------------------
     ! interpolate onto T-grid points and rotate on T grid
@@ -2393,50 +2439,49 @@ nproc = narea - 1
     work3(:,:) = c0
     work4(:,:) = c0
 
+    ! Mask & average
+    sbuff_sum_u(:,:) = sbuff_sum_u(:,:)*umask(:,:,1)/tlast_coupled
+    sbuff_sum_v(:,:) = sbuff_sum_v(:,:)*vmask(:,:,1)/tlast_coupled
     ! Apply LBC
-    sbuff_sum_u(:,:) = sbuff_sum_u(:,:)*umask(:,:,1)
-    sbuff_sum_v(:,:) = sbuff_sum_v(:,:)*vmask(:,:,1)
-    call lbc_lnk('ocn_comp_nuopc', sbuff_sum_u(:,:), 'U', -1._wp)
-    call lbc_lnk('ocn_comp_nuopc', sbuff_sum_v(:,:), 'V', -1._wp)
+    call lbc_lnk('ocn_comp_nuopc', sbuff_sum_u(:,:), 'U', -1._wp, sbuff_sum_v(:,:), 'V', -1._wp)
     ! (U,V) -> T
     do j = 2, jpj
        do i = 2, jpi
           rtmp1 = umask(i,j,1)+umask(i-1,j,1)
           if (rtmp1>c0) then
-             work3(i,j) = ( sbuff_sum_u(i,j)*umask(i,j,1) + &
+             work1(i,j) = ( sbuff_sum_u(i,j)*umask(i,j,1) + &
                 sbuff_sum_u(i-1,j)*umask(i-1,j,1) ) / rtmp1
           end if
           rtmp2 = vmask(i,j,1)+vmask(i,j-1,1)
           if (rtmp2>c0) then
-             work4(i,j) = ( sbuff_sum_v(i,j)*vmask(i,j,1) + &
+             work2(i,j) = ( sbuff_sum_v(i,j)*vmask(i,j,1) + &
                 sbuff_sum_v(i,j-1)*vmask(i,j-1,1) ) / rtmp2
           end if
        end do
     end do
-    work3(:,:) = work3(:,:)*tmask(:,:,1)
-    work4(:,:) = work4(:,:)*tmask(:,:,1)
+    work1(:,:) = work1(:,:)*tmask(:,:,1)
+    work2(:,:) = work2(:,:)*tmask(:,:,1)
     ! Apply LBC
-    call lbc_lnk('ocn_comp_nuopc', work3, 'T', -1._wp)
-    call lbc_lnk('ocn_comp_nuopc', work4, 'T', -1._wp)
+    call lbc_lnk('ocn_comp_nuopc', work1, 'T', -1._wp, work2, 'T', -1._wp)
  
     if (.not. lfirst) then
-       call iom_put("So_u_o2x", work3/tlast_coupled)
-       call iom_put("So_v_o2x", work4/tlast_coupled)
+       call iom_put("So_u_o2x", work1)
+       call iom_put("So_v_o2x", work2)
     endif
  
-    call rot_rep( work3, work4, 'T', 'ij->e', work1 )
-    call rot_rep( work3, work4, 'T', 'ij->n', work2 )
+    call rot_rep( work1, work2, 'T', 'ij->e', work3 )
+    call rot_rep( work1, work2, 'T', 'ij->n', work4 )
  
-    work3(:,:) = work1(:,:)*tmask(:,:,1)/tlast_coupled
-    work4(:,:) = work2(:,:)*tmask(:,:,1)/tlast_coupled
+    work1(:,:) = work3(:,:)*tmask(:,:,1)
+    work2(:,:) = work4(:,:)*tmask(:,:,1)
  
     if (l_export) then
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
           n = n + 1
-          dataptr1(n) = work3(i,j)
-          dataptr2(n) = work4(i,j)
+          dataptr1(n) = work1(i,j)
+          dataptr2(n) = work2(i,j)
        enddo
     enddo
     end if
@@ -2451,12 +2496,11 @@ nproc = narea - 1
     dataptr1(:) = shr_const_spval
  
     work1(:,:) = (sbuff_sum_t(:,:)/tlast_coupled + rt0)*tmask(:,:,1)
-    call lbc_lnk('ocn_comp_nuopc', work1, 'T', 1._wp)
 
     if (l_export) then
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
           n = n + 1
           dataptr1(n) = work1(i,j)
        enddo
@@ -2469,8 +2513,8 @@ nproc = narea - 1
 !       dataptr2d(:,:) = c0
 !       n = 0
 !       call dom_zgr(iktop, ikbot)
-!       do j = 1, jpj !1, jpj !lnldj,lnlej !this_block%jb,this_block%je
-!          do i = 1, jpi !1, jpi !lnldi,lnlei !this_block%ib,this_block%ie
+!       do j = 1, jpj !1, jpj !Njs0,Nje0 !this_block%jb,this_block%je
+!          do i = 1, jpi !1, jpi !Nis0,Nie0 !this_block%ib,this_block%ie
 !             n = n + 1
 !             do lev = 1,num_ocn2glc_levels
 !                 if (ikbot(i,j) >= ocn2glc_levels(lev)) then
@@ -2493,12 +2537,11 @@ nproc = narea - 1
 
     dataptr1(:) = shr_const_spval
     work1(:,:) = sbuff_sum_s(:,:)*tmask(:,:,1)/tlast_coupled
-    call lbc_lnk('ocn_comp_nuopc',  work1, 'T', 1._wp)
 
     if (l_export) then
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
           n = n + 1
           dataptr1(n) = work1(i,j)
        enddo
@@ -2511,8 +2554,8 @@ nproc = narea - 1
 !       dataptr2d(:,:) = c0
 !       n = 0
 !       call dom_zgr(iktop, ikbot)
-!       do j = 1, jpj !1, jpj !lnldj,lnlej !this_block%jb,this_block%je
-!          do i = 1, jpi !1, jpi !lnldi,lnlei !this_block%ib,this_block%ie
+!       do j = 1, jpj !1, jpj !Njs0,Nje0 !this_block%jb,this_block%je
+!          do i = 1, jpi !1, jpi !Nis0,Nie0 !this_block%ib,this_block%ie
 !             n = n + 1
 !             do lev = 1,num_ocn2glc_levels
 !                 if (ikbot(i,j) >= ocn2glc_levels(lev)) then
@@ -2545,49 +2588,47 @@ nproc = narea - 1
     work4(:,:) = c0
 
     ! Apply LBC
-    sbuff_sum_dhdx(:,:) = sbuff_sum_dhdx(:,:)*umask(:,:,1)
-    sbuff_sum_dhdy(:,:) = sbuff_sum_dhdy(:,:)*vmask(:,:,1)
-    call lbc_lnk('ocn_comp_nuopc', sbuff_sum_dhdx(:,:), 'U', -1._wp)
-    call lbc_lnk('ocn_comp_nuopc', sbuff_sum_dhdy(:,:), 'V', -1._wp)
+    sbuff_sum_dhdx(:,:) = sbuff_sum_dhdx(:,:)*umask(:,:,1)/tlast_coupled
+    sbuff_sum_dhdy(:,:) = sbuff_sum_dhdy(:,:)*vmask(:,:,1)/tlast_coupled
+    call lbc_lnk('ocn_comp_nuopc', sbuff_sum_dhdx(:,:), 'U', -1._wp, sbuff_sum_dhdy(:,:), 'V', -1._wp)
     ! (U,V) -> T
     do j = 2, jpj
        do i = 2, jpi
           rtmp1 = umask(i,j,1)+umask(i-1,j,1)
           if (rtmp1>c0) then
-             work3(i,j) = ( sbuff_sum_dhdx(i,j)*umask(i,j,1) + &
+             work1(i,j) = ( sbuff_sum_dhdx(i,j)*umask(i,j,1) + &
                 sbuff_sum_dhdx(i-1,j)*umask(i-1,j,1) ) / rtmp1
           end if
           rtmp2 = vmask(i,j,1)+vmask(i,j-1,1)
           if (rtmp2>c0) then
-             work4(i,j) = ( sbuff_sum_dhdy(i,j)*vmask(i,j,1) + &
+             work2(i,j) = ( sbuff_sum_dhdy(i,j)*vmask(i,j,1) + &
                 sbuff_sum_dhdy(i,j-1)*vmask(i,j-1,1) ) / rtmp2
           end if
        end do
     end do
-    work3(:,:) = work3(:,:)*tmask(:,:,1)
-    work4(:,:) = work4(:,:)*tmask(:,:,1)
+    work1(:,:) = work1(:,:)*tmask(:,:,1)
+    work2(:,:) = work2(:,:)*tmask(:,:,1)
     ! Apply LBC
-    call lbc_lnk('ocn_comp_nuopc', work3, 'T', -1._wp)
-    call lbc_lnk('ocn_comp_nuopc', work4, 'T', -1._wp)
+    call lbc_lnk('ocn_comp_nuopc', work1, 'T', -1._wp, work2, 'T', -1._wp)
  
     if (.not. lfirst) then
-       call iom_put("So_dhdx_o2x", work3/tlast_coupled)
-       call iom_put("So_dhdy_o2x", work4/tlast_coupled)
+       call iom_put("So_dhdx_o2x", work1)
+       call iom_put("So_dhdy_o2x", work2)
     endif
  
-    call rot_rep( work3, work4, 'T', 'ij->e', work1 )
-    call rot_rep( work3, work4, 'T', 'ij->n', work2 )
+    call rot_rep( work1, work2, 'T', 'ij->e', work3 )
+    call rot_rep( work1, work2, 'T', 'ij->n', work4 )
  
-    work3(:,:) = work1(:,:)*tmask(:,:,1)/tlast_coupled
-    work4(:,:) = work2(:,:)*tmask(:,:,1)/tlast_coupled
+    work1(:,:) = work3(:,:)*tmask(:,:,1)
+    work2(:,:) = work4(:,:)*tmask(:,:,1)
  
     if (l_export) then
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
           n = n + 1
-          dataptr1(n) = work3(i,j)
-          dataptr2(n) = work4(i,j)
+          dataptr1(n) = work1(i,j)
+          dataptr2(n) = work2(i,j)
        enddo
     enddo
     end if
@@ -2603,8 +2644,8 @@ nproc = narea - 1
     dataptr1(:) = shr_const_spval
     if (l_export) then
     n = 0
-    do j=lnldj,lnlej
-       do i=lnldi,lnlei
+    do j=Njs0,Nje0
+       do i=Nis0,Nie0
           n = n + 1
           dataptr1(n) = QFLUX(i,j) * mod2med_areacor(n) 
        enddo
@@ -2617,6 +2658,7 @@ nproc = narea - 1
 
     tlast_ice = c0
     AQICE     = c0
+    QFLUX     = c0
 !    QICE      = c0
 
     !-----------------------------------------------------------------------
@@ -2630,8 +2672,8 @@ nproc = narea - 1
        dataptr1(:) = shr_const_spval
 
        n = 0
-       do j=lnldj,lnlej
-         do i=lnldi,lnlei
+       do j=Njs0,Nje0
+         do i=Nis0,Nie0
             n = n + 1
             dataptr1(n) = (sbuff_sum_co2(i,j)/tlast_coupled) * mod2med_areacor(n) 
          enddo
@@ -2660,8 +2702,8 @@ nproc = narea - 1
 
              n = 0
              workA(:,:) = c0
-             do j=lnldj,lnlej
-                do i=lnldi,lnlei
+             do j=Njs0,Nje0
+                do i=Nis0,Nie0
                   n = n + 1
                   workA(i,j) = dataptr1(n)
                 enddo
@@ -2674,7 +2716,6 @@ nproc = narea - 1
              else if (trim(fieldNameList(nfld))=='Fioo_q') then
                 workA(:,:)=MAX(c0, workA(:,:))
              end if
-             call lbc_lnk('ocn_comp_nuopc', workA(:,:), 'T', sgn)
      
              gsum = glob_sum('ocn_comp_nuopc', workA(:,:)*e1e2t(:,:))
      
@@ -2865,15 +2906,15 @@ nproc = narea - 1
 
     n = 0
     if (present(areacor)) then
-       do j=lnldj,lnlej
-          do i=lnldi,lnlei
+       do j=Njs0,Nje0
+          do i=Nis0,Nie0
                 n = n + 1
                 output(i,j) = dataPtr1d(n) * areacor(n)
           end do
        end do
     else
-       do j=lnldj,lnlej
-          do i=lnldi,lnlei
+       do j=Njs0,Nje0
+          do i=Nis0,Nie0
                 n = n + 1
                 output(i,j) = dataPtr1d(n)
           end do
@@ -2972,8 +3013,6 @@ nproc = narea - 1
     real (wp), dimension(jpi,jpj) :: ssgu, ssgv          ! sea surface gradient
     integer,   dimension(jpi,jpj) :: iktop, ikbot          ! sea surface gradient
     real (wp)                :: delt                                      ! time interval since last step
-    real (wp)                :: ztmp                                      ! time interval since last step
-!    integer (int_kind)       :: iblock                                    ! block index
     integer (i4)             :: sflux_co2_nf_ind = 0                      ! named field index of fco2
     integer                  :: ji,jj                                 ! indices
     logical, save            :: first = .true.                            ! only true for first call
@@ -2982,6 +3021,8 @@ nproc = narea - 1
     !-----------------------------------------------------------------------
     ! zero buffer if this is the first time after a coupling interval
     !-----------------------------------------------------------------------
+
+    rc = 0
 
     if (tlast_coupled == c0) then
        if (.not. allocated(sbuff_sum_u)) then
@@ -3013,14 +3054,14 @@ nproc = narea - 1
           allocate(sbuff_sum_co2 (jpi,jpj))
        end if
        sbuff_sum_co2  (:,:) = c0
-       if (.not. allocated(sbuff_sum_t_depth)) then
-          allocate(sbuff_sum_t_depth (jpi,jpj,num_ocn2glc_levels))
-       end if
-       sbuff_sum_t_depth(:,:,:) = c0
-       if (.not. allocated(sbuff_sum_s_depth)) then
-          allocate(sbuff_sum_s_depth (jpi,jpj,num_ocn2glc_levels))
-       end if
-       sbuff_sum_s_depth(:,:,:) = c0
+       !if (.not. allocated(sbuff_sum_t_depth)) then
+       !   allocate(sbuff_sum_t_depth (jpi,jpj,num_ocn2glc_levels))
+       !end if
+       !sbuff_sum_t_depth(:,:,:) = c0
+       !if (.not. allocated(sbuff_sum_s_depth)) then
+       !   allocate(sbuff_sum_s_depth (jpi,jpj,num_ocn2glc_levels))
+       !end if
+       !sbuff_sum_s_depth(:,:,:) = c0
     end if
 
     work = c0

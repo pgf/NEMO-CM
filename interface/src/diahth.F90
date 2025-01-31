@@ -365,8 +365,8 @@ CONTAINS
          IF( iid /= 1 ) THEN 
              zztmp =     gdept(ji,jj,iid  ,Kmm)   &                     ! linear interpolation
                &  + (    gdept(ji,jj,iid+1,Kmm) - gdept(ji,jj,iid,Kmm)                       )   &
-               &  * ( 20.*tmask(ji,jj,iid+1) - ts(ji,jj,iid,jp_tem,Kmm)                       )   &
-               &  / ( ts(ji,jj,iid+1,jp_tem,Kmm) - ts(ji,jj,iid,jp_tem,Kmm) + (1.-tmask(ji,jj,1)) )
+               &  * ( ptem*tmask(ji,jj,iid+1) - ts(ji,jj,iid,jp_tem,Kmm)                       )   &
+               &  / ( ts(ji,jj,iid+1,jp_tem,Kmm) - ts(ji,jj,iid,jp_tem,Kmm) + (1._wp-tmask(ji,jj,1)) )
             pdept(ji,jj) = MIN( zztmp , zzdep) * tmask(ji,jj,1)       ! bound by the ocean depth
          ELSE 
             pdept(ji,jj) = 0._wp
