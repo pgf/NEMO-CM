@@ -7,7 +7,7 @@
 
   <!--   My zoom: example of hand defined zoom   -->
   <domain id="EquT" domain_ref="grid_T">
-    <zoom_domain ibegin="0" jbegin="505" ni="1440" nj="45"/>
+    <zoom_domain ibegin="0" jbegin="130" ni="360" nj="33"/>
   </domain>
 
   <domain id="1point" domain_ref="grid_T" >
