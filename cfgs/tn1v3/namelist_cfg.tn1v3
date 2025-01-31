@@ -19,7 +19,7 @@
 !-----------------------------------------------------------------------
 &namrun        !   parameters of the run
 !-----------------------------------------------------------------------
-   cn_exp      = "ORCA025L75"  !  experience name
+   cn_exp      = "ORCA1L50"    !  experience name
    nn_it000    =   1           !  first time step
    nn_itend    =  960          !  last  time step
    nn_date0    =  20000101     !  date at nit_0000 (format yyyymmdd) used if ln_rstart=F or (ln_rstart=T and nn_rstctl=0 or 1)
@@ -39,7 +39,6 @@
 !-----------------------------------------------------------------------
    ln_linssh   = .false.    !  =T  linear free surface  ==>>  model level are fixed in time
    !
-   !rn_Dt      = 900        !  time step for the dynamics and tracer
    rn_Dt      = 1200        !  time step for the dynamics and tracer
    !
    ln_meshmask = .false.   !  =T create a mesh file
@@ -84,8 +83,8 @@
    !___________!____________________________!___________________!___________!_____________!________!___________!__________________!__________!_______________!
    !           !  file name                 ! frequency (hours) ! variable  ! time interp.!  clim  ! 'yearly'/ ! weights filename ! rotation ! land/sea mask !
    !           !                            !  (if <0  months)  !   name    !   (logical) !  (T/F) ! 'monthly' !                  ! pairing  !    filename   !
-   sn_tem = 'data_1m_potential_temperature_nomask',     -12            ,'thetao'   ,   .true.    , .true. , 'yearly'  ,    ''    ,    ''    ,    ''
-   sn_sal = 'data_1m_salinity_nomask',     -12            ,'so'       ,   .true.    , .true. , 'yearly'  ,    ''    ,    ''    ,    ''
+   sn_tem = 'data_1m_potential_temperature_nomask', -12            ,'thetao'   ,   .true.    , .true. , 'yearly'  ,    ''    ,    ''    ,    ''
+   sn_sal = 'data_1m_salinity_nomask',              -12            ,'so'       ,   .true.    , .true. , 'yearly'  ,    ''    ,    ''    ,    ''
 /
 !!======================================================================
 !!            ***  Surface Boundary Condition namelists  ***          !!
@@ -177,7 +176,7 @@
    !___________!_____________!___________________!___________!_____________!_________!___________!__________!__________!_______________!
    !           !  file name  ! frequency (hours) ! variable  ! time interp. !  clim  ! 'yearly'/ ! weights  ! rotation ! land/sea mask !
    !           !             !  (if <0  months)  !   name    !   (logical)  !  (T/F) ! 'monthly' ! filename ! pairing  ! filename      !
-   sn_rnf      = 'ORCA025L75-Dai2009_runoff',    -1    , 'runoff',   .true.     , .true. , 'yearly'  , ''       , ''       , ''
+   sn_rnf      = 'ORCA1-Dai2009_runoff',    -1    , 'runoff',   .true.     , .true. , 'yearly'  , ''       , ''       , ''
 /
 !-----------------------------------------------------------------------
 &namsbc_apr    !   Atmospheric pressure used as ocean forcing           (ln_apr_dyn =T)
@@ -305,7 +304,7 @@
       !                             !   = 20     aht = 1/2  Ud. max(e1,e2)
       !                        !  time invariant coefficients:  aht0 = 1/2  Ud*Ld   (lap case)
       !                             !                           or   = 1/12 Ud*Ld^3 (blp case)
-      rn_Ud        = 0.021         !  lateral diffusive velocity [m/s] (nn_aht_ijk_t= 0, 10, 20, 30)
+      rn_Ud        = 0.018         !  lateral diffusive velocity [m/s] (nn_aht_ijk_t= 0, 10, 20, 30)
       !rn_Ld        = 60.e+3        !  lateral diffusive length   [m]   (nn_aht_ijk_t= 0, 10)
 /
 !-----------------------------------------------------------------------
@@ -316,7 +315,16 @@
 !-----------------------------------------------------------------------
 &namtra_eiv    !   eddy induced velocity param.                         (default: OFF)
 !-----------------------------------------------------------------------
-   ln_ldfeiv   = .false.   ! use eddy induced velocity parameterization
+   ln_ldfeiv   = .true.  ! use eddy induced velocity parameterization
+      !
+      !                        !  Coefficients:
+      nn_aei_ijk_t    = 20          !  space/time variation of eddy coefficient:
+      !                             !   = 20 F(i,j)    =ldf_c2d
+      !                        !  time invariant coefficients:  aei0 = 1/2  Ue*Le
+      rn_Ue         = 0.02           !  lateral diffusive velocity [m/s] (nn_aht_ijk_t= 0, 10, 20, 30)
+      !rn_Le        = 200.e+3        !  lateral diffusive length   [m]   (nn_aht_ijk_t= 0, 10)
+      !
+      ln_ldfeiv_dia =.false.   ! diagnose eiv stream function and velocities
 /
 !-----------------------------------------------------------------------
 &namtra_dmp    !   tracer: T & S newtonian damping                      (default: OFF)
@@ -378,14 +386,14 @@
 &namdyn_ldf    !   lateral diffusion on momentum                        (default: NO selection)
 !-----------------------------------------------------------------------
    !                       !  Type of the operator :
-   ln_dynldf_blp = .true.     !  bilaplacian operator
+   ln_dynldf_lap = .true.     !    laplacian operator
    !                       !  Direction of action  :
    ln_dynldf_hor = .true.     !  horizontal  (geopotential)
    !                       !  Coefficient
-   nn_ahm_ijk_t  = 20         !  space/time variation of eddy coef
+   nn_ahm_ijk_t  = 30         !  space/time variation of eddy coef
       !                        !  time invariant coefficients :  ahm = 1/2  Uv*Lv   (lap case)
       !                             !                            or  = 1/12 Uv*Lv^3 (blp case)
-      rn_Uv      = 0.1              !  lateral viscous velocity [m/s] (nn_ahm_ijk_t= 0, 10, 20, 30)
+      rn_Uv      = 0.18             !  lateral viscous velocity [m/s] (nn_ahm_ijk_t= 0, 10, 20, 30)
       !rn_Lv      = 130.e+4           !  lateral viscous length   [m]   (nn_ahm_ijk_t= 0, 10)
       !                       !  iso-neutral laplacian operator (ln_dynldf_iso=T) :
       rn_ahm_b      = 0.0         !  background eddy viscosity  [m2/s]
