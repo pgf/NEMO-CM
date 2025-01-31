@@ -31,6 +31,7 @@ MODULE diahsb
    USE lib_mpp        ! distributed memory computing library
    USE timing         ! preformance summary
 #if defined CCSMCOUPLED
+   USE sbccpl_cesm,   only: lk_cesm
    USE qflxice         ! frazil ice formation
 #endif
 
@@ -136,15 +137,14 @@ CONTAINS
       IF( ln_isf    )   z_frc_trd_t = z_frc_trd_t + zbg(6) ! isf heat
       IF( ln_traqsr )   z_frc_trd_t = z_frc_trd_t + zbg(7) ! penetrative solar flux
       IF( ln_trabbc )   z_frc_trd_t = z_frc_trd_t + zbg(8) ! geothermal heat
+#if defined CCSMCOUPLED
+      ! Add frazil ice formation heat flux
+      IF (lk_cesm)      z_frc_trd_t = z_frc_trd_t - r1_rho0_rcp * glob_sum( 'diahsb', QICE(:,:) * surf(:,:) )
+#endif
       !
       frc_v = frc_v + z_frc_trd_v * rn_Dt
       frc_t = frc_t + z_frc_trd_t * rn_Dt
       frc_s = frc_s + z_frc_trd_s * rn_Dt
-#if defined CCSMCOUPLED
-      ! Add frazil ice formation heat flux
-      z_frc_trd_t = -0.5_wp * glob_sum( 'diahsb', QICE(:,:) * surf(:,:) )
-      frc_t = frc_t + z_frc_trd_t
-#endif
       !                                          ! Advection flux through fixed surface (z=0)
       IF( ln_linssh ) THEN
          z_wn_trd_t = zbg(9)

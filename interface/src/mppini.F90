@@ -154,7 +154,7 @@ CONTAINS
       LOGICAL, ALLOCATABLE, DIMENSION(:,:,:) ::   llnei    ! are neighbourgs existing?
 #if defined CCSMCOUPLED
       INTEGER, ALLOCATABLE, DIMENSION(:    ) ::   iinL, ijnL
-      INTEGER :: jpnijL, jpiL, jpjL
+      INTEGER :: jpiL, jpjL
 #endif
       NAMELIST/nambdy/ ln_bdy, nb_bdy, ln_coords_file, cn_coords_file,           &
            &             ln_mask_file, cn_mask_file, cn_dyn2d, nn_dyn2d_dta,     &
@@ -332,33 +332,6 @@ CONTAINS
       !
       CALL mpp_basesplit( jpiglo, jpjglo, nn_hls, jpni, jpnj, jpimax, jpjmax, iimppt, ijmppt, ijpi, ijpj )
       CALL mpp_getnum( llisOce, ipproc, iin, ijn )
-#if defined CCSMCOUPLED
-      ! save land subdomain position
-      IF( jpni*jpnj > inijmin ) THEN
-        jpnijL = jpni*jpnj - inijmin
-        IF( narea <= jpnijL ) THEN
-           ALLOCATE( iinL(jpnijL), ijnL(jpnijL) )
-           CALL mpp_getnum_lnd(llisOce, iinL, ijnL)
-           iiL    = iinL(narea)
-           ijL    = ijnL(narea)
-           jpiL   = ijpi(iiL,ijL)
-           jpjL   = ijpj(iiL,ijL)
-           nimppL = iimppt(iiL,ijL)
-           njmppL = ijmppt(iiL,ijL)
-           Nis0L  =   1+nn_hls
-           Njs0L  =   1+nn_hls
-           Nie0L  = jpiL-nn_hls
-           Nje0L  = jpjL-nn_hls
-        ELSE
-          nimppL = 0
-          njmppL = 0
-          Nis0L  = 0
-          Njs0L  = 0
-          Nie0L  = 0
-          Nje0L  = 0
-        ENDIF
-      ENDIF
-#endif
       !
       ii = iin(narea)
       ij = ijn(narea)
@@ -371,6 +344,42 @@ CONTAINS
       !
       CALL init_doloop    ! set start/end indices of do-loop, depending on the halo width value (nn_hls)
       CALL init_locglo    ! define now functions needed to convert indices from/to global to/from local domains
+      !
+#if defined CCSMCOUPLED
+      nimppL = -1
+      njmppL = -1
+      Nis0L  = 0
+      Njs0L  = 0
+      Nie0L  = -1
+      Nje0L  = -1
+      ! number of suppressed land-only subdomains
+      numsls = ABS(SUM(ipproc, MASK=(ipproc==-1)))
+      ! save eliminated land-only subdomains positions
+      IF( numsls > 0 ) THEN
+        ! FIXME: this idea works only if the number of suppressed land-only subdomains
+        !        is less or equal to the number of active domains (numsls <= mppsize).
+        !        This is usually true for global configurations, but it can be false
+        !        for regional configurations
+         IF (numsls > mppsize) THEN
+            CALL ctl_stop('mpp_init: CCSMCOUPLED: numsls > mppsize!')
+         END IF
+         IF( narea <= numsls ) THEN
+            ALLOCATE( iinL(numsls), ijnL(numsls) )
+            CALL mpp_getnum_lnd(ipproc, iinL, ijnL)
+            iiL    = iinL(narea)
+            ijL    = ijnL(narea)
+            jpiL   = ijpi(iiL,ijL)
+            jpjL   = ijpj(iiL,ijL)
+            nimppL = iimppt(iiL,ijL)
+            njmppL = ijmppt(iiL,ijL)
+            Nis0L  = 1+nn_hls
+            Njs0L  = 1+nn_hls
+            Nie0L  = jpiL-nn_hls
+            Nje0L  = jpjL-nn_hls
+            DEALLOCATE( iinL, ijnL )
+         ENDIF
+      ENDIF
+#endif
       !
       IF(lwp) THEN
          WRITE(numout,*)
@@ -1180,48 +1189,42 @@ CONTAINS
    END SUBROUTINE mpp_getnum
 
 #if defined CCSMCOUPLED
-   SUBROUTINE mpp_getnum_lnd ( ldIsOce, kipos, kjpos )
+   SUBROUTINE mpp_getnum_lnd ( ilproc, kipos, kjpos )
       !!----------------------------------------------------------------------
       !!                  ***  ROUTINE mpp_getnum_lnd  ***
       !!
       !! ** Purpose : give the location of the suppressed land subdomains 
       !!
-      !! ** Method  : start from bottom left. First skip already used land
-      !subdomain, 
-      !!              and provide the location of remaining land subdomains.
+      !! ** Method  : start from bottom left and provide the location of
+      !!              suppressed land-only subdomains (ilproc == -1)
+      !!
       !!----------------------------------------------------------------------
-      LOGICAL, DIMENSION(:,:), INTENT(in   ) ::   ldIsOce     ! F if land process
+      INTEGER, DIMENSION(:,:), INTENT(in   ) ::   ilproc      ! -1 if suppressed land process
 !      number (-1 if not existing, starting at 0)
       INTEGER, DIMENSION(  :), INTENT(  out) ::   kipos       ! i-position of the subdomain (from 1 to jpni)
       INTEGER, DIMENSION(  :), INTENT(  out) ::   kjpos       ! j-position of the subdomain (from 1 to jpnj)
       !
+      INTEGER :: inumsls      ! number of suppressed land-only subdomain
       INTEGER :: ii, ij, jarea, iarea0
-      INTEGER :: icont, i2del , ini, inj, inij
-      INTEGER :: ndlsize, exlsize, ndosize
+      INTEGER :: icont, ini, inj
       !!----------------------------------------------------------------------
       !
-      ndosize = COUNT( ldIsOce )   ! number of oce subdomains
-      ndlsize = jpni*jpnj - mppsize
-      exlsize = mppsize - ndosize
-      ini = SIZE(ldIsOce, dim = 1)
-      inj = SIZE(ldIsOce, dim = 2)
-      ! compute the position of land subdomains
-      icont = -1
-      i2del = exlsize
+      ini = SIZE(ilproc, dim = 1)
+      inj = SIZE(ilproc, dim = 2)
+      inumsls = SIZE(kipos)
+      ! compute and save the position of suppressed land-only subdomains
+      icont = 1
       DO jarea = 1, ini*inj
          iarea0 = jarea - 1
          ii = 1 + MOD(iarea0,ini)
          ij = 1 +     iarea0/ini
-         IF( .not. ldIsOce(ii,ij) ) THEN
-            if (i2del < 1) then
-               icont = icont + 1
-               kipos(icont+1) = ii
-               kjpos(icont+1) = ij
-            else
-               i2del = i2del - 1
-            end if
+         IF ( (ilproc(ii,ij)==-1) .and. (icont<=inumsls) ) THEN
+            kipos(icont) = ii
+            kjpos(icont) = ij
+            icont = icont + 1
          ENDIF
       END DO
+      !
    END SUBROUTINE mpp_getnum_lnd
 #endif
 

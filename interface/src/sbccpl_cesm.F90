@@ -54,7 +54,6 @@ MODULE sbccpl_cesm
 #if defined key_cpl_carbon_cycle
    REAL(wp), ALLOCATABLE, SAVE, PUBLIC, DIMENSION(:,:) :: co2_x2o
 #endif
-   REAL(wp), ALLOCATABLE, SAVE, PUBLIC, DIMENSION(:,:) :: sicew_x2o
 
    LOGICAL, SAVE, PUBLIC :: lrecv
 
@@ -82,7 +81,7 @@ CONTAINS
                 salt_x2o(jpi,jpj),  swnet_x2o(jpi,jpj), sen_x2o(jpi,jpj),    &
                 lat_x2o(jpi,jpj),   lwup_x2o(jpi,jpj),  lwdn_x2o(jpi,jpj),   &
                 melth_x2o(jpi,jpj), ifrac_x2o(jpi,jpj), pslv_x2o(jpi,jpj),   &
-                duu10n_x2o(jpi,jpj),  apr(jpi,jpj),     sicew_x2o(jpi,jpj),  &
+                apr(jpi,jpj),       duu10n_x2o(jpi,jpj),                     &
                 STAT=ierr(1) )
       !
 
@@ -116,7 +115,6 @@ CONTAINS
       ifrac_x2o  = 0.0_wp
       pslv_x2o   = 0.0_wp
       duu10n_x2o = 0.0_wp
-      apr        = 0.0_wp
       utau       = 0.0_wp
       vtau       = 0.0_wp
       taum       = 0.0_wp
@@ -175,7 +173,7 @@ CONTAINS
       !!
       ! local data
       REAL(wp) :: zrnfex   ! excess runoff to be redistributed over E-P
-      REAL(wp) :: tmpvar   ! excess runoff to be redistributed over E-P
+      REAL(wp) :: tmpvar   !
       INTEGER  :: i, j     ! dummy loop index
       REAL(wp), DIMENSION(A2D(nn_hls)) ::   ztx, zty, zcptn
 
@@ -198,26 +196,26 @@ CONTAINS
       ! LBC (halo) update
       call lbc_lnk( 'sbccpl_cesm', ztx(:,:), 'T', -1._wp, zty(:,:), 'T', -1._wp )
 
+      ! Compute wind stress module at T points (lbc_lnk applied later in sbc)
+      taum(:,:) = SQRT( ztx(:,:)*ztx(:,:) + zty(:,:)*zty(:,:) )
+
       ! and shift T to U,V grid
       utau(:,:) = 0.0_wp
       vtau(:,:) = 0.0_wp
       DO j = 1, jpj-1                                          ! T ==> (U,V)
          DO i = 1, jpi-1   ! vector opt.
-            IF ((tmask(i+1,j,1)+tmask(i,j,1))/=0.0_wp) THEN
-               utau(i,j) = (ztx(i+1,j)*tmask(i+1,j,1)+ztx(i,j)*tmask(i,j,1)) / &
-                           (tmask(i+1,j,1)+tmask(i,j,1))
+            tmpvar = tmask(i+1,j,1)+tmask(i,j,1)
+            IF (tmpvar>0.0_wp) THEN
+               utau(i,j) = (ztx(i+1,j)*tmask(i+1,j,1)+ztx(i,j)*tmask(i,j,1)) / tmpvar
             ENDIF
-            IF ((tmask(i,j+1,1)+tmask(i,j,1))/=0.0_wp) THEN
-               vtau(i,j) = (zty(i,j+1)*tmask(i,j+1,1)+zty(i,j)*tmask(i,j,1)) / &
-                           (tmask(i,j+1,1)+tmask(i,j,1))
+            tmpvar = tmask(i,j+1,1)+tmask(i,j,1)
+            IF (tmpvar>0.0_wp) THEN
+               vtau(i,j) = (zty(i,j+1)*tmask(i,j+1,1)+zty(i,j)*tmask(i,j,1)) / tmpvar
             ENDIF
          END DO
       END DO
       utau(:,:) = utau(:,:)*umask(:,:,1)
       vtau(:,:) = vtau(:,:)*vmask(:,:,1)
-
-      ! Compute wind stress module at T points
-      taum(:,:) = SQRT( ztx(:,:)*ztx(:,:) + zty(:,:)*zty(:,:) )
 
 !     2. distribute fresh water, salt and heat fluxes
 
@@ -234,17 +232,16 @@ CONTAINS
       zrnfex = 0.0_wp
       IF ( rn_rnf_bnd > 0.0_wp ) THEN
          ! Compute excess runoff
-         ztx(:,:) = max(rnf(:,:)-rn_rnf_bnd,0.0_wp)
-         rnf(:,:) = min(rnf(:,:),rn_rnf_bnd)
-         zrnfex   = glob_sum('sbccpl_cesm', ztx(:,:)*e1e2t(:,:))
+         zcptn(:,:) = max(rnf(:,:)-rn_rnf_bnd,0.0_wp)
+         rnf(:,:)   = min(rnf(:,:),rn_rnf_bnd)
+         zrnfex     = glob_sum('sbccpl_cesm', zcptn(:,:)*e1e2t(:,:))
       END IF
 
       IF ( ln_rnf ) THEN
          emp(:,:) = -(evap_x2o(:,:)+rain_x2o(:,:)+snow_x2o(:,:)+meltw_x2o(:,:))
       ELSE
-!         emp(:,:) = emp(:,:)-rnf(:,:)
          emp(:,:) = -(evap_x2o(:,:)+rain_x2o(:,:)+snow_x2o(:,:)+meltw_x2o(:,:)+ &
-                      roff_x2o(:,:)+ioff_x2o(:,:))
+                      rnf(:,:))
          rnf(:,:) = 0._wp
       ENDIF
       !
@@ -257,22 +254,20 @@ CONTAINS
 
       ! Salt Flux over the ocean from cpl  [(Kg*psu)/(m^2 s)]
       sfx(:,:) = salt_x2o(:,:)
-      ! Compute ice only water flux from virtual salt flux
-      sicew_x2o(:,:)=0._wp
-      WHERE (sss_m(:,:) .GT. 0._wp) sicew_x2o(:,:)= salt_x2o(:,:) / sss_m(:,:)
 
       ! Heat budget
       ! NEMO: [qsr, qns]>0 ==> d(SST)/dt>0
       !       Sign convention: positive downward
       !       Units: MKS
-      ! in NEMO 3.6 heat flux related to emp has to be subtracted from qns
-      zcptn(:,:) = rcp * sst_m(:,:)
       ! Solar radiation 
       qsr(:,:)  = swnet_x2o(:,:)
       ! Non solar radiation minus emp
       qns(:,:)  = lwup_x2o(:,:)+lwdn_x2o(:,:)+sen_x2o(:,:)+lat_x2o(:,:)+         &
-                  melth_x2o(:,:)-(snow_x2o(:,:)+ioff_x2o(:,:))*rLfus              &
-                  - emp(:,:) * zcptn(:,:)
+                  melth_x2o(:,:)-(snow_x2o(:,:)+ioff_x2o(:,:))*rLfus
+      IF( ln_linssh ) THEN
+        ! With ln_linssh heat flux related to emp has to be subtracted from qns
+        qns(:,:) = qns(:,:) - rcp * emp(:,:) * sst_m(:,:)
+      END IF
 
       emp(:,:) = emp(:,:)*tmask(:,:,1)
       sfx(:,:) = sfx(:,:)*tmask(:,:,1)
@@ -282,9 +277,10 @@ CONTAINS
 !     3. distribute ice cover, wind speed module
       fr_i(:,:) = ifrac_x2o(:,:)*tmask(:,:,1)
       ! m2/s2 -> m/s
-      wndm(:,:) = 0.0_wp
       WHERE (duu10n_x2o(:,:) > 0.0_wp)
         wndm(:,:) = SQRT(duu10n_x2o(:,:))
+      ELSEWHERE
+        wndm(:,:) = 0.0_wp
       END WHERE
       wndm(:,:) = wndm(:,:)*tmask(:,:,1)
 
@@ -297,12 +293,15 @@ CONTAINS
 #endif
 
 !     update ghost cells for fluxes received from the coupler
-      call lbc_lnk( 'sbccpl_cesm', utau(:,:), 'U', -1._wp, vtau(:,:), 'V', -1._wp, &
-        &         apr(:,:) , 'T', 1._wp, emp(:,:), 'T', 1._wp, sfx(:,:) , 'T', 1._wp, &
-        &         qsr(:,:) , 'T', 1._wp, qns(:,:), 'T', 1._wp, fr_i(:,:), 'T', 1._wp, &
-        &         wndm(:,:), 'T', 1._wp)
+      call lbc_lnk( 'sbccpl_cesm',                           &
+        &  utau(:,:), 'U', -1._wp,                           &
+        &  vtau(:,:), 'V', -1._wp,                           &
+        &  apr(:,:),  'T',  1._wp,   emp(:,:),  'T', 1._wp,  &
+        &  sfx(:,:),  'T',  1._wp,   qsr(:,:),  'T', 1._wp,  &
+        &  qns(:,:),  'T',  1._wp,   fr_i(:,:), 'T', 1._wp,  &
+        &  wndm(:,:), 'T',  1._wp )
 
-      IF ( ln_rnf ) call lbc_lnk('sbccpl_cesm', rnf(:,:),  'T', 1._wp)
+      IF ( ln_rnf ) call lbc_lnk('sbccpl_cesm', rnf(:,:), 'T', 1._wp)
 
 #if defined key_cpl_carbon_cycle
       call lbc_lnk('sbccpl_cesm', atm_co2(:,:), 'T', 1._wp)
@@ -336,7 +335,6 @@ CONTAINS
 #if defined key_cpl_carbon_cycle
    IF (ALLOCATED(co2_x2o))    DEALLOCATE(co2_x2o)
 #endif
-   IF (ALLOCATED(sicew_x2o))   DEALLOCATE(sicew_x2o)
    END SUBROUTINE sbc_cpl_cesm_finalize
 
 #else

@@ -24,6 +24,7 @@ module qflxice
    use iom
    use restart
    use lib_fortran
+   use shr_frz_mod,        only: shr_frz_freezetemp_init, shr_frz_freezetemp
 
    implicit none
    private
@@ -82,11 +83,11 @@ module qflxice
    real (wp), public ::  &
       tlast_ice           ! time since last ice flux computed
 
-   real (wp) ::  &
-      cp_over_lhfusion    ! rcp/lfus
+!   real (wp) ::  &
+!      cp_over_lhfusion    ! rcp/lfus
 
-   real (wp) ::          &
-      hflux_factor
+!   real (wp) ::          &
+!      hflux_factor
 
    integer :: &
       nn_itsc             ! ice formation/melting time steps counter
@@ -96,7 +97,7 @@ module qflxice
       kmxice = 1          ! lowest level from which to integrate 
                           ! ice formation (1 => surface)
 
-!#include "domzgr_substitute.h90"
+#include "domzgr_substitute.h90"
 
 !EOC
 !***********************************************************************
@@ -108,8 +109,9 @@ module qflxice
 ! !IROUTINE:
 ! !INTERFACE:
 
- subroutine init_qflxice
+ subroutine init_qflxice(tfrz_option)
 
+  character(len=lc), INTENT(IN)   :: tfrz_option     ! tfrz_option from driver
 ! !DESCRIPTION:
 !  This routine initializes ice formation/melting related variables.
 !  It must be called before initializing restarts because this module
@@ -137,9 +139,10 @@ module qflxice
 !
 !-----------------------------------------------------------------------
 
-!   cp_over_lhfusion = rho0*rcp/(lfus*raufw)
-   cp_over_lhfusion = rho0*rcp/(rLfus*rhoi)
-   hflux_factor     = 1. / ( rho0*rcp )
+!   cp_over_lhfusion = rho0_rcp/(rLfus*raufw)
+!   hflux_factor     = r1_rho0_rcp
+
+   CALL shr_frz_freezetemp_init(tfrz_option, lwp)
 
    kmxice           = 1
    lactive_ice      = .true.
@@ -153,6 +156,7 @@ module qflxice
       write(numout,'(a20,1pe10.3)') 'Ice salinity(PSU) = ', sice
       write(numout,'(a30,i3,a13)') 'Ice formation computed in top ', &
                 kmxice, ' levels only.'
+      write(numout,'(a)') 'tfreeze_option from driver = '//TRIM(tfrz_option)
    endif
 
    tlast_ice = 0.0_wp
@@ -307,7 +311,7 @@ module qflxice
 !     !***
 !
        call tfreez(TFRZ(:,:),ts(:,:,k,jp_sal,Kaa))
-       POTICE(:,:) = (TFRZ(:,:) - ts(:,:,k,jp_tem,Kaa))*e3t_0(:,:,k)*tmask(:,:,k)
+       POTICE(:,:) = (TFRZ(:,:) - ts(:,:,k,jp_tem,Kaa))*e3t(:,:,k,Kaa)*tmask(:,:,k)
 !
 !     !***
 !     !*** if potice < 0, use the heat to melt any ice
@@ -355,7 +359,7 @@ module qflxice
      
      call tfreez(TFRZ(:,:),ts(:,:,k,jp_sal,Kaa))
 
-     WORK1(:,:) = e3t_0(:,:,k)
+     WORK1(:,:) = e3t(:,:,k,Kaa)
 
 !     if (.not. lk_vvl)  &
 !       WORK1 = WORK1 + ssha(:,:)
@@ -482,7 +486,7 @@ module qflxice
    call tfreez(TFRZ(:,:),ts(:,:,1,jp_sal,Knn))
 !   call tfreez(TFRZ(:,:),sn(:,:,1))
 
-   WORK1(:,:) = e3t_0(:,:,1)
+   WORK1(:,:) = e3t(:,:,1,Knn)
 
 !   if ( .not. lk_vvl ) &
 !     WORK1 = WORK1 + sshn(:,:)
@@ -504,8 +508,8 @@ module qflxice
 !-----------------------------------------------------------------------
 
 !   AQICE(:,:) = AQICE(:,:)/REAL(nn_nits,wp)
-!   AQICE(:,:) = AQICE(:,:)/REAL(nn_itsc,wp)
-   AQICE(:,:) = AQICE(:,:)*0.5_wp
+   AQICE(:,:) = AQICE(:,:)/REAL(nn_itsc,wp)
+!   AQICE(:,:) = AQICE(:,:)*0.5_wp
 
 !-----------------------------------------------------------------------
 !
@@ -527,7 +531,7 @@ module qflxice
    if (tlast_ice == 0.0_wp) then
      QFLUX(:,:) = 0.0_wp
    else
-     QFLUX(:,:) = WORK1(:,:)*tmask(:,:,1)*rho0*rcp/tlast_ice
+     QFLUX(:,:) = WORK1(:,:)*tmask(:,:,1)*rho0_rcp/tlast_ice
    endif
 
    lice_form_ts = .false.
@@ -574,12 +578,12 @@ module qflxice
 !BOC
 !-----------------------------------------------------------------------
 !
-!  use only the first salinity term in the expansion
+!  call shr function to return freezing temp based on drv namelist
+!  choice of minus1p8, linear_salt, or mushy algorithms.
 !
 !-----------------------------------------------------------------------
 
-!   TFRZ(:,:) = -0.054_wp*SALT(:,:)
-   TFRZ(:,:) = -1.8_wp
+   TFRZ(:,:) = shr_frz_freezetemp(SALT(:,:))
 
 !-----------------------------------------------------------------------
 !EOC

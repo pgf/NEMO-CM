@@ -617,6 +617,7 @@ CONTAINS
       !                                                !        Outputs and control print         !
       !                                                ! ---------------------------------------- !
       IF( MOD( kt-1, nn_fsbc ) == 0 ) THEN
+         z2d(:,:) = 0.0_wp
          IF( iom_use("empmr") ) THEN
             DO_2D( 0, 0, 0, 0 )
                z2d(ji,jj) =  emp(ji,jj) - rnf(ji,jj)
@@ -639,16 +640,20 @@ CONTAINS
          ENDIF
          CALL iom_put( "qns"    , qns         )                ! solar heat flux
          CALL iom_put( "qsr"    , qsr         )                ! solar heat flux
-         IF( nn_ice > 0 .OR. ll_opa )   CALL iom_put( "ice_cover", fr_i )   ! ice fraction
          CALL iom_put( "taum"   , taum        )                ! wind stress module
          CALL iom_put( "wspd"   , wndm        )                ! wind speed  module over free ocean or leads in presence of sea-ice
          CALL iom_put( "qrp"    , qrp         )                ! heat flux damping
          CALL iom_put( "erp"    , erp         )                ! freshwater flux damping
 #if defined CCSMCOUPLED
          CALL iom_put("evap_x2o",  evap_x2o)
-         CALL iom_put("prec_x2o",  rain_x2o+snow_x2o)
          CALL iom_put("rain_x2o",  rain_x2o)
          CALL iom_put("snow_x2o",  snow_x2o)
+         IF ( iom_use("prec_x2o") ) THEN
+            DO_2D( 0, 0, 0, 0 )
+               z2d(ji,jj) =  rain_x2o(ji,jj) + snow_x2o(ji,jj)
+            END_2D
+            CALL iom_put( "prec_x2o", z2d  )
+         ENDIF
          CALL iom_put("roff_x2o",  roff_x2o)
          CALL iom_put("ioff_x2o",  ioff_x2o)
          CALL iom_put("meltw_x2o", meltw_x2o)
@@ -656,12 +661,24 @@ CONTAINS
          CALL iom_put("swnet_x2o", swnet_x2o)
          CALL iom_put("lwdn_x2o",  lwdn_x2o)
          CALL iom_put("lwup_x2o",  lwup_x2o)
-         CALL iom_put("lwnet_x2o", lwdn_x2o+lwup_x2o)
+         IF ( iom_use("lwnet_x2o") ) THEN
+            DO_2D( 0, 0, 0, 0 )
+               z2d(ji,jj) =  lwdn_x2o(ji,jj) + lwup_x2o(ji,jj)
+            END_2D
+            CALL iom_put( "lwnet_x2o", z2d  )
+         ENDIF
          CALL iom_put("sen_x2o",   sen_x2o)
          CALL iom_put("lat_x2o",   lat_x2o)
          CALL iom_put("melth_x2o", melth_x2o)
-         CALL iom_put("sicew_x2o", sicew_x2o)
          CALL iom_put("ice_cover", fr_i )   ! ice fraction 
+         IF ( iom_use("precip") ) THEN
+            DO_2D( 0, 0, 0, 0 )
+               z2d(ji,jj) =  rain_x2o(ji,jj) + snow_x2o(ji,jj)
+            END_2D
+            CALL iom_put( "precip", z2d  )
+         ENDIF
+#else
+         IF( nn_ice > 0 .OR. ll_opa )   CALL iom_put( "ice_cover", fr_i )   ! ice fraction
 #endif
       ENDIF
       !

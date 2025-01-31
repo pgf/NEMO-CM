@@ -84,6 +84,7 @@ MODULE dom_oce
    INTEGER              , PUBLIC ::   nimpp, njmpp     !: i- & j-indexes for mpp-subdomain left bottom
 #if defined CCSMCOUPLED
    INTEGER              , PUBLIC ::   nimppL, njmppL   !: i- & j-indexes for land mpp-subdomain left bottom
+   INTEGER              , PUBLIC ::   numsls           !: number of suppressed land-only subdomains
 #endif
    INTEGER              , PUBLIC ::   narea            !: number for local area (starting at 1) = MPI rank + 1
    INTEGER,               PUBLIC ::   nidom      !: IOIPSL things...
@@ -203,9 +204,6 @@ MODULE dom_oce
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:,:), TARGET ::   wumask, wvmask                      !: land/ocean mask at WU- and WV-pts
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:,:), TARGET ::   fe3mask                             !: land/ocean mask at F-pts
    REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:,:) :: tmask_upd, umask_upd, vmask_upd                 !: land/ocean mask at F-pts
-#if defined CCSMCOUPLED
-   REAL(wp), PUBLIC, ALLOCATABLE, SAVE, DIMENSION(:) ::   tpol, fpol          !: north fold mask (jperio= 3 or 4)
-#endif
 
    !!----------------------------------------------------------------------
    !! calendar variables
@@ -278,12 +276,6 @@ CONTAINS
       !!----------------------------------------------------------------------
       ii = 0   ;   ierr(:) = 0
       !
-#if defined CCSMCOUPLED
-      ii = ii+1
-      ALLOCATE( tpol(jpiglo)  , fpol(jpiglo), &
-         &      STAT=ierr(ii) )
-#endif
-         !
       ii = ii+1
       ALLOCATE( glamt(jpi,jpj) ,    glamu(jpi,jpj) ,  glamv(jpi,jpj) ,  glamf(jpi,jpj) ,     &
          &      gphit(jpi,jpj) ,    gphiu(jpi,jpj) ,  gphiv(jpi,jpj) ,  gphif(jpi,jpj) ,     &
