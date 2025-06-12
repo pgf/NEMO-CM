@@ -41,7 +41,6 @@
    !
    !rn_Dt      = 900        !  time step for the dynamics and tracer
    rn_Dt      = 1200        !  time step for the dynamics and tracer
-   rn_atfp     =    0.1    !  asselin time filter parameter
    !
    ln_meshmask = .false.   !  =T create a mesh file
 /
@@ -50,7 +49,7 @@
 !-----------------------------------------------------------------------
    ln_read_cfg = .true.     !  (=T) read the domain configuration file
       !                      !  (=F) user defined configuration           (F => create/check namusr_def)
-      cn_domcfg = "ORCA025L75_domain_cfg"  ! domain configuration filename
+      cn_domcfg = "domain_cfg"  ! domain configuration filename
       !
       ln_closea    = .false. !  (=T => fill namclo)
       !                      !  (=F) no control of net precip/evap over closed sea
@@ -85,8 +84,8 @@
    !___________!____________________________!___________________!___________!_____________!________!___________!__________________!__________!_______________!
    !           !  file name                 ! frequency (hours) ! variable  ! time interp.!  clim  ! 'yearly'/ ! weights filename ! rotation ! land/sea mask !
    !           !                            !  (if <0  months)  !   name    !   (logical) !  (T/F) ! 'monthly' !                  ! pairing  !    filename   !
-   sn_tem = 'ORCA025L75_woa18_thetao_nomask',     -12            ,'thetao'   ,   .true.    , .true. , 'yearly'  ,    ''    ,    ''    ,    ''
-   sn_sal = 'ORCA025L75_woa18_so_nomask'    ,     -12            ,'so'       ,   .true.    , .true. , 'yearly'  ,    ''    ,    ''    ,    ''
+   sn_tem = 'data_1m_potential_temperature_nomask',     -12            ,'thetao'   ,   .true.    , .true. , 'yearly'  ,    ''    ,    ''    ,    ''
+   sn_sal = 'data_1m_salinity_nomask',     -12            ,'so'       ,   .true.    , .true. , 'yearly'  ,    ''    ,    ''    ,    ''
 /
 !!======================================================================
 !!            ***  Surface Boundary Condition namelists  ***          !!
@@ -129,9 +128,6 @@
 &namsbc_blk   !   namsbc_blk  generic Bulk formula                      (ln_blk =T)
 !-----------------------------------------------------------------------
    !                    !  bulk algorithm :
-   !ln_NCAR    = .false.
-   ln_ECMWF    = .true.
-      rn_zqt       = 2.     !  Air temperature & humidity reference height (m)
    !
    ln_crt_fbk = .true.     !  Add surface current feedback to the wind stress (Renault et al. 2020, doi: 10.1029/2019MS001715)
          rn_stau_a = -2.9e-3   !     Alpha from eq. 10: Stau = Alpha * Wnd + Beta
@@ -145,21 +141,6 @@
       rn_Ce_i  = 1.4e-3       !    "    sublimation coefficient
       rn_Ch_i  = 1.4e-3       !    "    sensible heat flux coefficient
    !
-   cn_dir = './'  !  root directory for the bulk data location
-
-!---------------------------------------------------------
-!              !   file name    ! frequency (hours) ! variable ! time interpol. !  clim   ! 'yearly'/ ! weights              ! rotation !
-!              !                !  (if <0  months)  !   name   !    (logical)   !  (T/F)  ! 'monthly' ! filename             ! pairing  !
-
-   sn_wndi     = 'Era5_u10m'    ,         1         , 'u10m'   ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bicubic'  , 'Uwnd'
-   sn_wndj     = 'Era5_v10m'    ,         1         , 'v10m'   ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bicubic'  , 'Vwnd'
-   sn_qsr      = 'Era5_swrd'    ,         1         , 'swrd'   ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bilinear' , ''
-   sn_qlw      = 'Era5_lwrd'    ,         1         , 'lwrd'   ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bilinear' , ''
-   sn_tair     = 'Era5_t2m'     ,         1         , 't2m'    ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bilinear' , ''
-   sn_humi     = 'Era5_q2m'     ,         1         , 'q2m'    ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bilinear' , ''
-   sn_prec     = 'Era5_precip'  ,         1         , 'precip' ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bilinear' , ''
-   sn_snow     = 'Era5_snow'    ,         1         , 'snow'   ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bilinear' , ''
-   sn_slp      = 'Era5_mslp'    ,         1         , 'mslp'   ,     .false.    , .false. , 'monthly' , 'ORCA025L75_ERA5_wgt_bilinear' , ''       
 /
 !-----------------------------------------------------------------------
 &namtra_qsr    !   penetrative solar radiation                          (ln_traqsr =T)
@@ -174,7 +155,7 @@
    !___________!__________________________________!___________________!___________!_____________!________!___________!__________________!__________!_______________!
    !           !  file name                       ! frequency (hours) ! variable  ! time interp.!  clim  ! 'yearly'/ ! weights filename ! rotation ! land/sea mask !
    !           !                                  !  (if <0  months)  !   name    !   (logical) !  (T/F) ! 'monthly' !                  ! pairing  !    filename   !
-   sn_chl      = 'ORCA025L75_ESACCIv4_chl_nomask' ,       -1          ,   'chl'   ,    .true.   , .true. , 'yearly'  , '' , '' , ''
+   sn_chl      = 'chlorophyll' ,       -1          ,   'chl'   ,    .true.   , .true. , 'yearly'  , '' , '' , ''
 /
 !-----------------------------------------------------------------------
 &namsbc_ssr    !   surface boundary condition : sea surface restoring   (ln_ssr =T)
@@ -190,6 +171,7 @@
    ln_rnf_tem   = .false.   !  read in temperature information for runoff
    ln_rnf_sal   = .false.   !  read in salinity information for runoff
    ln_rnf_depth = .false.    !  read in depth information for runoff
+   rn_rnf_bnd   = 0.           !  !: max allowed runoff. [kg/m2/s] (CESM coupled formulation)
    !
    cn_dir = './'  !  root directory for the location of the runoff files
    !___________!_____________!___________________!___________!_____________!_________!___________!__________!__________!_______________!
@@ -275,7 +257,7 @@
    !___________!_________________________!___________________!___________!_____________!________!___________!__________________!__________!_______________!
    !           !  file name              ! frequency (hours) ! variable  ! time interp.!  clim  ! 'yearly'/ ! weights filename ! rotation ! land/sea mask !
    !           !                         !  (if <0  months)  !   name    !   (logical) !  (T/F) ! 'monthly' !                  ! pairing  !    filename   !
-   sn_qgh      ='ORCA025L75_Goutorbe2011_heatflow_nomask'  ,       -12.        , 'heatflow',   .false.   , .true. , 'yearly'  ,   ''             ,   ''     ,   ''
+   sn_qgh      ='geothermal_heating'  ,       -12.        , 'heatflow',   .false.   , .true. , 'yearly'  ,   ''             ,   ''     ,   ''
 /
 !-----------------------------------------------------------------------
 &nambbl        !   bottom boundary layer scheme                         (default: OFF)
@@ -464,6 +446,11 @@
 !!   nam_dia25h   25h Mean Output                                       (default: OFF)
 !!   namnc4       netcdf4 chunking and compression settings             ("key_netcdf4")
 !!======================================================================
+!-----------------------------------------------------------------------
+&namhsb        !  Heat and salt budgets                                 (default: OFF)
+!-----------------------------------------------------------------------
+   ln_diahsb   = .false.   !  output the heat and salt budgets (T) or not (F)
+/
 !
 !!======================================================================
 !!               ***  Observation & Assimilation  ***                 !!

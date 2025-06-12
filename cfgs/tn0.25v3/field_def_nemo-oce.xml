@@ -253,32 +253,6 @@ that are available in the tidal-forcing implementation (see
     <field id="mf_Sp"       long_name="plume_salinity"         standard_name="plume_salinity"        unit="1e-3"   grid_ref="grid_T_3D" />
     <field id="mf_mf"       long_name="mass flux"              standard_name="mf_mass_flux"          unit="m"      grid_ref="grid_T_3D" />
 
-    <!-- available CCSMCOUPLED --> 
-    <field id="evap_x2o"     long_name="Total evaporation from Coupler"                               unit="kg/m2/s"  />
-    <field id="rain_x2o"     long_name="Total liquid precipitation (rain) from Coupler"               unit="kg/m2/s"  />
-    <field id="snow_x2o"     long_name="Total solid precipitation (snow) from Coupler"                unit="kg/m2/s"  />
-    <field id="prec_x2o"     long_name="Total precipitation (rain+snow) from Coupler"                unit="kg/m2/s"  />
-    <field id="roff_x2o"     long_name="Runoff flux from Coupler"                                     unit="kg/m2/s"  />
-    <field id="ioff_x2o"     long_name="Ice runoff flux from Coupler due to Land Model Snow Capping"  unit="kg/m2/s"  />
-    <field id="meltw_x2o"    long_name="Water flux from Coupler due to sea ice/snow freezing/melting" unit="kg/m2/s"  />
-    <field id="salt_x2o"     long_name="Salt flux from Coupler"                                       unit="psu*kg/m2/s"  />
-    <field id="swnet_x2o"    long_name="Net shortwave heat flux from Coupler"                         unit="W/m2"  />
-    <field id="lwup_x2o"     long_name="Upward longwave heat flux from Coupler"                       unit="W/m2"  />
-    <field id="lwdn_x2o"     long_name="Downward longwave heat flux from Coupler"                     unit="W/m2"  />
-    <field id="lwnet_x2o"    long_name="Net Downward longwave heat flux from Coupler"                 unit="W/m2"  />
-    <field id="sen_x2o"      long_name="Sensible heat flux from Coupler"                              unit="W/m2"  />
-    <field id="lat_x2o"      long_name="Latent heat flux from Coupler"                                unit="W/m2"  />
-    <field id="melth_x2o"    long_name="Melting heat flux from Coupler"                               unit="W/m2"  />
-    <field id="sicew_x2o"    long_name="Seaice only water flux to ocean (from virtual salt flux)"     unit="W/m2"  />
-
-    <field id="So_u_o2x"     long_name="Sea surface zonal velocity (on T-points, to the coupler)"     unit="m/s"  />
-    <field id="So_v_o2x"     long_name="Sea surface meridional velocity (on T-points, to the coupler)" unit="m/s"  />
-    <field id="So_t_o2x"     long_name="Sea surface temperature (to the coupler)"                     unit="degC"  />
-    <field id="So_s_o2x"     long_name="Sea surface salinity (to the coupler)"                        unit="psu"  />
-    <field id="So_dhdx_o2x"  long_name="Sea surface gradient, zonal dir. (on T-points, to the coupler)"     unit="m/m"  />
-    <field id="So_dhdy_o2x"  long_name="Sea surface gradient, meridional dir. (on T-points, to the coupler)" unit="m/m"  />
-    <field id="So_qflux_o2x" long_name="Sea ice freezing/melting potential (to the coupler)"          unit="W/m2"  />
-
     <field id="mldr0_125"    long_name="Mixed Layer Depth dr=0.125 (ref.surf)"     unit="m"                        />
     <field id="rhositu"      long_name="in situ density"                unit="kg/m3" grid_ref="grid_T_3D"  />
 
@@ -560,6 +534,32 @@ that are available in the tidal-forcing implementation (see
       <field id="hflx_fwb_cea"  long_name="heat flux due to fwb"          standard_name="heat_flux_due_to_fwb"          unit="W/m2"     />
       <field id="vflx_fwb_cea"  long_name="volume flux due to fwb"        standard_name="volume_flux_due_to_fwb"        unit="kg/m2/s"  />
       
+      <!-- available CCSMCOUPLED --> 
+      <field id="evap_x2o"     long_name="Total evaporation from Coupler"                               unit="kg/m2/s"  />
+      <field id="rain_x2o"     long_name="Total liquid precipitation (rain) from Coupler"               unit="kg/m2/s"  />
+      <field id="snow_x2o"     long_name="Total solid precipitation (snow) from Coupler"                unit="kg/m2/s"  />
+      <field id="prec_x2o"     long_name="Total precipitation (rain+snow) from Coupler"                 unit="kg/m2/s"  />
+      <field id="roff_x2o"     long_name="Runoff flux from Coupler"                                     unit="kg/m2/s"  />
+      <field id="ioff_x2o"     long_name="Ice runoff flux from Coupler due to Land Model Snow Capping"  unit="kg/m2/s"  />
+      <field id="meltw_x2o"    long_name="Water flux from Coupler due to sea ice/snow freezing/melting" unit="kg/m2/s"  />
+      <field id="salt_x2o"     long_name="Salt flux from Coupler"                                       unit="psu*kg/m2/s"  />
+      <field id="swnet_x2o"    long_name="Net shortwave heat flux from Coupler"                         unit="W/m2"  />
+      <field id="lwup_x2o"     long_name="Upward longwave heat flux from Coupler"                       unit="W/m2"  />
+      <field id="lwdn_x2o"     long_name="Downward longwave heat flux from Coupler"                     unit="W/m2"  />
+      <field id="lwnet_x2o"    long_name="Net Downward longwave heat flux from Coupler"                 unit="W/m2"  />
+      <field id="sen_x2o"      long_name="Sensible heat flux from Coupler"                              unit="W/m2"  />
+      <field id="lat_x2o"      long_name="Latent heat flux from Coupler"                                unit="W/m2"  />
+      <field id="melth_x2o"    long_name="Melting heat flux from Coupler"                               unit="W/m2"  />
+      <!--field id="sicew_x2o"    long_name="Seaice only water flux to ocean (from virtual salt flux)"     unit="W/m2"  /-->
+
+      <field id="So_u_o2x"     long_name="Sea surface zonal velocity (on T-points, to the coupler)"     unit="m/s"  />
+      <field id="So_v_o2x"     long_name="Sea surface meridional velocity (on T-points, to the coupler)" unit="m/s"  />
+      <field id="So_t_o2x"     long_name="Sea surface temperature (to the coupler)"                     unit="degC"  />
+      <field id="So_s_o2x"     long_name="Sea surface salinity (to the coupler)"                        unit="psu"  />
+      <field id="So_dhdx_o2x"  long_name="Sea surface gradient, zonal dir. (on T-points, to the coupler)"     unit="m/m"  />
+      <field id="So_dhdy_o2x"  long_name="Sea surface gradient, meridional dir. (on T-points, to the coupler)" unit="m/m"  />
+      <field id="So_qflux_o2x" long_name="Sea ice freezing/melting potential (to the coupler)"          unit="W/m2"  />
+
       <!-- ice field (nn_ice=1)  -->
       <field id="ice_cover"    long_name="Ice fraction"                                                 standard_name="sea_ice_area_fraction"                              unit="1"            />
 
@@ -649,6 +649,7 @@ that are available in the tidal-forcing implementation (see
     <field id="sbu"          long_name="ocean bottom current along i-axis"                                                                  unit="m/s"  grid_ref="grid_U_2D_inner" />
     <field id="ubar"         long_name="ocean barotropic current along i-axis"                                                              unit="m/s"                             />
     <field id="uocetr_eff"   long_name="Effective ocean transport along i-axis"                 standard_name="ocean_volume_x_transport"    unit="m3/s"       grid_ref="grid_U_3D" />
+    <field id="uocetr_eff_vsum"   long_name="vertical integral of effective ocean transport along i-axis"                 standard_name="ocean_volume_x_transport"    unit="m3/s"      field_ref="uocetr_eff"  grid_ref="grid_U_vsum" />
     <field id="uocet"        long_name="ocean transport along i-axis times temperature (CRS)"                                               unit="degC*m/s"   grid_ref="grid_U_3D" />
     <field id="uoces"        long_name="ocean transport along i-axis times salinity (CRS)"                                                  unit="1e-3*m/s"   grid_ref="grid_U_3D" />
     <field id="ssuww"        long_name="ocean surface wind work along i-axis"                   standard_name="surface_x_wind_work"         unit="N/m*s"                            > utau * ssu </field>
@@ -667,6 +668,7 @@ that are available in the tidal-forcing implementation (see
     <!-- uoce_eiv: available EIV (ln_ldfeiv=T and ln_ldfeiv_dia=T) -->
     <field id="uoce_eiv"      long_name="EIV ocean current along i-axis"                                  standard_name="bolus_sea_water_x_velocity"                     unit="m/s"   grid_ref="grid_U_3D" />
     <field id="ueiv_masstr"   long_name="EIV Ocean Mass X Transport"                                      standard_name="bolus_ocean_mass_x_transport"                   unit="kg/s"  grid_ref="grid_U_3D" />
+    <field id="ueiv_masstr_vsum"   long_name="vertical integral of EIV Ocean Mass X Transport"            standard_name="bolus_ocean_mass_x_transport"                   unit="kg/s"  grid_ref="grid_U_vsum"     field_ref="ueiv_masstr" />
     <field id="ueiv_heattr"   long_name="ocean bolus heat transport along i-axis"                         standard_name="ocean_heat_x_transport_due_to_bolus_advection"  unit="W"                         />
     <field id="ueiv_salttr"   long_name="ocean bolus salt transport along i-axis"                         standard_name="ocean_salt_x_transport_due_to_bolus_advection"  unit="Kg"                        />
     <field id="ueiv_heattr3d" long_name="ocean bolus heat transport along i-axis"                         standard_name="ocean_heat_x_transport_due_to_bolus_advection"  unit="W"     grid_ref="grid_U_3D" />
@@ -709,6 +711,7 @@ that are available in the tidal-forcing implementation (see
     <field id="sbv"          long_name="ocean bottom current along j-axis"                                                                  unit="m/s"  grid_ref="grid_V_2D_inner" />
     <field id="vbar"         long_name="ocean barotropic current along j-axis"                                                              unit="m/s"                             />
     <field id="vocetr_eff"   long_name="Effective ocean transport along j-axis"                 standard_name="ocean_volume_y_transport"    unit="m3/s"       grid_ref="grid_V_3D" />
+    <field id="vocetr_eff_vsum"   long_name="vertical integral of effective ocean transport along j-axis"                 standard_name="ocean_volume_y_transport"    unit="m3/s"      field_ref="vocetr_eff"  grid_ref="grid_V_vsum" />
     <field id="vocet"        long_name="ocean transport along j-axis times temperature (CRS)"                                               unit="degC*m/s"   grid_ref="grid_V_3D" />
     <field id="voces"        long_name="ocean transport along j-axis times salinity (CRS)"                                                  unit="1e-3*m/s"   grid_ref="grid_V_3D" />
     <field id="ssvww"        long_name="ocean surface wind work along j-axis"                   standard_name="surface_y_wind_work"         unit="N/m*s"                            > vtau * ssv </field>
@@ -727,6 +730,7 @@ that are available in the tidal-forcing implementation (see
     <!-- voce_eiv: available EIV (ln_ldfeiv=T and ln_ldfeiv_dia=T)  -->
     <field id="voce_eiv"     long_name="EIV ocean current along j-axis"  standard_name="bolus_sea_water_y_velocity"     unit="m/s"   grid_ref="grid_V_3D" />
     <field id="veiv_masstr"  long_name="EIV Ocean Mass Y Transport"      standard_name="bolus_ocean_mass_y_transport"   unit="kg/s"  grid_ref="grid_V_3D" />
+    <field id="veiv_masstr_vsum"   long_name="vertical integral of EIV Ocean Mass Y Transport"            standard_name="bolus_ocean_mass_y_transport"                   unit="kg/s"  grid_ref="grid_V_vsum"     field_ref="veiv_masstr" />
     <field id="veiv_heattr"   long_name="ocean bolus heat transport along j-axis"       standard_name="ocean_heat_y_transport_due_to_bolus_advection"   unit="W"                         />
     <field id="veiv_salttr"   long_name="ocean bolus salt transport along j-axis"       standard_name="ocean_salt_x_transport_due_to_bolus_advection"   unit="Kg"                        />
     <field id="veiv_heattr3d" long_name="ocean bolus heat transport along j-axis"       standard_name="ocean_heat_y_transport_due_to_bolus_advection"   unit="W"    grid_ref="grid_V_3D" />
@@ -747,6 +751,7 @@ that are available in the tidal-forcing implementation (see
 
     <!-- variables available with diaar5 -->
     <field id="v_masstr"      long_name="ocean eulerian mass transport along j-axis"    standard_name="ocean_mass_y_transport"                          unit="kg/s" grid_ref="grid_V_3D" />
+    <field id="v_masstr_vint" long_name="vertical integral of ocean eulerian mass transport along j-axis" standard_name="vertical_integral_of_ocean_mass_y_transport"    unit="kg/s"   grid_ref="grid_V_2D_inner" />
     <field id="v_heattr"      long_name="ocean eulerian heat transport along j-axis"    standard_name="ocean_heat_y_transport"                          unit="W"          grid_ref="grid_V_2D_inner" />
     <field id="v_salttr"      long_name="ocean eulerian salt transport along i-axis"    standard_name="ocean_salt_y_transport"                          unit="1e-3*kg/s"  grid_ref="grid_V_2D_inner" />
     <field id="vadv_heattr"   long_name="ocean advective heat transport along j-axis"   standard_name="advectice_ocean_heat_y_transport"                unit="W"                         />
@@ -762,10 +767,12 @@ that are available in the tidal-forcing implementation (see
     <field id="woce"         long_name="ocean vertical velocity"                       standard_name="upward_sea_water_velocity"              unit="m/s"  />
     <field id="woce_e3w"     long_name="ocean vertical velocity * e3w"                                                                        unit="m2/s"  > woce * e3w </field>
     <field id="wocetr_eff"   long_name="effective ocean vertical transport"                                                                   unit="m3/s" />
+    <field id="wocetr_eff_vsum"   long_name="vertical integral of effective ocean vertical transport"                 standard_name="upward_ocean_mass_transport"    unit="m3/s"      field_ref="wocetr_eff"  grid_ref="grid_W_vsum" />
 
     <!-- woce_eiv: available with EIV  (ln_ldfeiv=T and ln_ldfeiv_dia=T)  -->
     <field id="woce_eiv"     long_name="EIV ocean vertical velocity"                    standard_name="bolus_upward_sea_water_velocity"       unit="m/s"  />
     <field id="weiv_masstr"  long_name="EIV Upward Ocean Mass Transport"  standard_name="bolus_upward_ocean_mass_transport"             unit="kg/s"   />
+    <field id="weiv_masstr_vsum"   long_name="vertical integral of EIV Upward Ocean Mass Transport"            standard_name="bolus_upward_ocean_mass_transport"                   unit="kg/s"  grid_ref="grid_W_vsum"     field_ref="weiv_masstr" />
     <field id="weiv_heattr3d" long_name="ocean bolus heat transport"    standard_name="ocean_heat_z_transport_due_to_bolus_advection"   unit="W"    />
     <field id="weiv_salttr3d" long_name="ocean bolus salt transport"    standard_name="ocean_salt_z_transport_due_to_bolus_advection"   unit="kg"   />
 
@@ -802,6 +809,7 @@ that are available in the tidal-forcing implementation (see
 
     <!-- variables available with diaar5 -->
     <field id="w_masstr"     long_name="vertical mass transport"                        standard_name="upward_ocean_mass_transport"             unit="kg/s"   />
+    <field id="w_masstr_vsum"  long_name="vertical integral of vertical mass transport" standard_name="upward_ocean_mass_transport"             unit="kg/s"  field_ref="w_masstr"  grid_ref="grid_W_vsum"  />
     <field id="w_masstr2"    long_name="square of vertical mass transport"              standard_name="square_of_upward_ocean_mass_transport"   unit="kg2/s2" />
 
     <!-- EOS -->

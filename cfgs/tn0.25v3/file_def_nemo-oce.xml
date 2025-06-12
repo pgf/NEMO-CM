@@ -27,15 +27,16 @@
           <field field_ref="saltc"        name="saltc" />
 
 	  <field field_ref="empmr"        name="wfo"      />
-	  <field field_ref="qsr_oce"      name="qsr_oce"  />
-	  <field field_ref="qns_oce"      name="qns_oce"  />
-	  <field field_ref="qt_oce"       name="qt_oce"   />
+          <field field_ref="runoffs"      name="runoffs"  />
+	  <field field_ref="qsr"          name="qsr"      />
+	  <field field_ref="qns"          name="qns"      />
+	  <field field_ref="qt"           name="qt"       />
 	  <field field_ref="saltflx"      name="sfx"      />
 	  <field field_ref="taum"         name="taum"     />
 	  <field field_ref="wspd"         name="windsp"   />
 	  <field field_ref="precip"       name="precip"   />
 	  <!-- ice and snow -->
-	  <field field_ref="snowpre" />
+	  <field field_ref="snow_x2o"     name="snowpre"  />
 	  <field field_ref="ice_cover" />
 	</file>
 
