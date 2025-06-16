@@ -2256,10 +2256,7 @@ nproc = narea - 1
              end if
           enddo
        enddo
-       !call shr_sys_abort('(set_surface_forcing) ERROR: ioff_x2o is negative')
-       !where (ioff_x2o(:,:)<c0)
-       !  ioff_x2o(:,:) = c0
-       !end where
+       call shr_sys_abort('(set_surface_forcing) ERROR: roff_x2o is negative')
     endif
 
     !-----------------------------------------------------------------------
