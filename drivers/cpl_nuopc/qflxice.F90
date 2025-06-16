@@ -24,6 +24,7 @@ module qflxice
    use iom
    use restart
    use lib_fortran
+   use shr_frz_mod,        only: shr_frz_freezetemp_init, shr_frz_freezetemp
 
    implicit none
    private
@@ -52,12 +53,12 @@ module qflxice
       lfw_as_salt_flx = .false.   ! treat fw flux as virtual salt flux
                                   ! even with var.thickness sfc layer
 
-   integer, parameter, public :: &
-      nn_nits = 2         ! ice formation/melting computed starting at nn_nits-1
-                          ! time steps before the coupling time step
-                          ! 1 ==> computed at the coupling time step only
-                          ! 2 ==> comp. at the coup. ts and 1 ts before
-                          ! n ==> comp. at the coup. ts and n-1 ts before
+!   integer, parameter, public :: &
+!      nn_nits = 2         ! ice formation/melting computed starting at nn_nits-1
+!                          ! time steps before the coupling time step
+!                          ! 1 ==> computed at the coupling time step only
+!                          ! 2 ==> comp. at the coup. ts and 1 ts before
+!                          ! n ==> comp. at the coup. ts and n-1 ts before
 
    real (wp), dimension(:,:), allocatable, public :: &
       QFLUX               ! internal ocn heat flux due to ice formation
@@ -82,21 +83,18 @@ module qflxice
    real (wp), public ::  &
       tlast_ice           ! time since last ice flux computed
 
-   real (wp) ::  &
-      cp_over_lhfusion    ! rcp/lfus
+!   real (wp) ::  &
+!      cp_over_lhfusion    ! rcp/lfus
 
-   real (wp) ::          &
-      hflux_factor
-
-   integer :: &
-      nn_itsc             ! ice formation/melting time steps counter
+!   real (wp) ::          &
+!      hflux_factor
 
    ! FIXME: should be a namelist variable !
    integer :: &
       kmxice = 1          ! lowest level from which to integrate 
                           ! ice formation (1 => surface)
 
-!#include "domzgr_substitute.h90"
+#include "domzgr_substitute.h90"
 
 !EOC
 !***********************************************************************
@@ -108,8 +106,9 @@ module qflxice
 ! !IROUTINE:
 ! !INTERFACE:
 
- subroutine init_qflxice
+ subroutine init_qflxice(tfrz_option)
 
+  character(len=lc), INTENT(IN)   :: tfrz_option     ! tfrz_option from driver
 ! !DESCRIPTION:
 !  This routine initializes ice formation/melting related variables.
 !  It must be called before initializing restarts because this module
@@ -137,14 +136,15 @@ module qflxice
 !
 !-----------------------------------------------------------------------
 
-!   cp_over_lhfusion = rho0*rcp/(lfus*raufw)
-   cp_over_lhfusion = rho0*rcp/(rLfus*rhoi)
-   hflux_factor     = 1. / ( rho0*rcp )
+!   cp_over_lhfusion = rho0_rcp/(rLfus*raufw)
+!   hflux_factor     = r1_rho0_rcp
+
+   CALL shr_frz_freezetemp_init(tfrz_option, lwp)
 
    kmxice           = 1
    lactive_ice      = .true.
 
-   liceform = .true.
+   liceform     = .true.
 
    lice_form_ts = .false.
    lice_cpl_ts  = .false.
@@ -153,10 +153,10 @@ module qflxice
       write(numout,'(a20,1pe10.3)') 'Ice salinity(PSU) = ', sice
       write(numout,'(a30,i3,a13)') 'Ice formation computed in top ', &
                 kmxice, ' levels only.'
+      write(numout,'(a)') 'tfreeze_option from driver = '//TRIM(tfrz_option)
    endif
 
    tlast_ice = 0.0_wp
-   nn_itsc = 0
 
    !***
    !*** allocate and initialize ice flux arrays
@@ -226,7 +226,7 @@ module qflxice
 !BOP
 ! !IROUTINE:
 ! !INTERFACE:
-   subroutine ice_formation( kt, Kaa )
+   subroutine ice_formation( kt, Ktt )
 
 ! !DESCRIPTION:
 !  This subroutine computes ocean heat flux to the sea-ice. it forms
@@ -240,8 +240,8 @@ module qflxice
    implicit none
  
 ! !INPUT/OUTPUT PARAMETERS:
-   integer, intent(in), optional :: kt
-   integer, intent(in) :: Kaa
+   integer, intent(in), optional :: kt   ! Time step
+   integer, intent(in) :: Ktt            ! Time level
 !EOP
 !BOC
 
@@ -306,8 +306,8 @@ module qflxice
 !     !*** (potice>0) or melting (potice<0) in layer k
 !     !***
 !
-       call tfreez(TFRZ(:,:),ts(:,:,k,jp_sal,Kaa))
-       POTICE(:,:) = (TFRZ(:,:) - ts(:,:,k,jp_tem,Kaa))*e3t_0(:,:,k)*tmask(:,:,k)
+       call tfreez(TFRZ(:,:),ts(:,:,k,jp_sal,Ktt))
+       POTICE(:,:) = (TFRZ(:,:) - ts(:,:,k,jp_tem,Ktt))*e3t(:,:,k,Ktt)*tmask(:,:,k)
 !
 !     !***
 !     !*** if potice < 0, use the heat to melt any ice
@@ -322,7 +322,7 @@ module qflxice
 !     !***
 !
        where (POTICE(:,:)>0.0_dp)
-         ts(:,:,k,jp_tem,Kaa) = TFRZ(:,:)
+         ts(:,:,k,jp_tem,Ktt) = TFRZ(:,:)
        endwhere
 !
 !       if (lk_vvl .and. .not. lfw_as_salt_flx) then
@@ -353,19 +353,19 @@ module qflxice
 
      k = 1
      
-     call tfreez(TFRZ(:,:),ts(:,:,k,jp_sal,Kaa))
+     call tfreez(TFRZ(:,:),ts(:,:,k,jp_sal,Ktt))
 
-     WORK1(:,:) = e3t_0(:,:,k)
+     WORK1(:,:) = e3t(:,:,k,Ktt)
 
 !     if (.not. lk_vvl)  &
 !       WORK1 = WORK1 + ssha(:,:)
 
-     POTICE(:,:) = (TFRZ(:,:) - ts(:,:,k,jp_tem,Kaa))*WORK1(:,:)*tmask(:,:,k)
+     POTICE(:,:) = (TFRZ(:,:) - ts(:,:,k,jp_tem,Ktt))*WORK1(:,:)*tmask(:,:,k)
 
      POTICE(:,:) = max(POTICE(:,:), QICE(:,:))
 
      where (POTICE(:,:)>0.0_dp)
-       ts(:,:,k,jp_tem,Kaa) = TFRZ(:,:)
+       ts(:,:,k,jp_tem,Ktt) = TFRZ(:,:)
      endwhere
 
 !     if (lk_vvl .and. .not. lfw_as_salt_flx) then
@@ -425,8 +425,6 @@ module qflxice
 !!!     SALT_FREEZE(:,:) = SALT_FREEZE(:,:) + WORK2(:,:)
 !!
 
-     nn_itsc = nn_itsc + 1
-
    endif ! time to do ice
 
    if (lrst_oce) then
@@ -445,7 +443,7 @@ module qflxice
 
 !***********************************************************************
 
-   subroutine ice_flx_to_coupler( kt, Knn )
+   subroutine ice_flx_to_coupler( kt, Ktt )
 
 !-----------------------------------------------------------------------
 !
@@ -455,8 +453,8 @@ module qflxice
 !
 !-----------------------------------------------------------------------
 
-   integer, intent(in) :: kt
-   integer, intent(in) :: Knn
+   integer, intent(in) :: kt   ! Time step
+   integer, intent(in) :: Ktt  ! Time level
 
 !-----------------------------------------------------------------------
 !
@@ -479,10 +477,10 @@ module qflxice
 !
 !-----------------------------------------------------------------------
 
-   call tfreez(TFRZ(:,:),ts(:,:,1,jp_sal,Knn))
+   call tfreez(TFRZ(:,:),ts(:,:,1,jp_sal,Ktt))
 !   call tfreez(TFRZ(:,:),sn(:,:,1))
 
-   WORK1(:,:) = e3t_0(:,:,1)
+   WORK1(:,:) = e3t(:,:,1,Ktt)
 
 !   if ( .not. lk_vvl ) &
 !     WORK1 = WORK1 + sshn(:,:)
@@ -494,8 +492,7 @@ module qflxice
 !-----------------------------------------------------------------------
 
    WORK2(:,:) = 0.0_wp
-   WORK2(:,:) = (TFRZ(:,:) - ts(:,:,1,jp_tem,Knn)) * WORK1(:,:) * tmask(:,:,1)
-!   WORK2(:,:) = (TFRZ(:,:) - tn(:,:,1)) * WORK1(:,:) * tmask(:,:,1)
+   WORK2(:,:) = (TFRZ(:,:) - ts(:,:,1,jp_tem,Ktt)) * WORK1(:,:) * tmask(:,:,1)
 
 !-----------------------------------------------------------------------
 !
@@ -503,9 +500,7 @@ module qflxice
 !
 !-----------------------------------------------------------------------
 
-!   AQICE(:,:) = AQICE(:,:)/REAL(nn_nits,wp)
-!   AQICE(:,:) = AQICE(:,:)/REAL(nn_itsc,wp)
-   AQICE(:,:) = AQICE(:,:)*0.5_wp
+   AQICE(:,:) = AQICE(:,:)*0.5_wp  ! Adjust for leap-frog time stepping
 
 !-----------------------------------------------------------------------
 !
@@ -518,6 +513,7 @@ module qflxice
 !     SFLUX(:,:) = SALT_FREEZE(:,:)*rho0*WORK1(:,:)*tmask(:,:,1)/tlast_ice
 !   endif
 
+   WORK1(:,:) = 0.0_wp
    where ( AQICE(:,:) < 0.0_wp ) 
      WORK1(:,:) = -AQICE(:,:)
    elsewhere
@@ -527,12 +523,11 @@ module qflxice
    if (tlast_ice == 0.0_wp) then
      QFLUX(:,:) = 0.0_wp
    else
-     QFLUX(:,:) = WORK1(:,:)*tmask(:,:,1)*rho0*rcp/tlast_ice
+     QFLUX(:,:) = WORK1(:,:)*tmask(:,:,1)*rho0_rcp/tlast_ice
    endif
 
    lice_form_ts = .false.
    lice_cpl_ts  = .false.
-   nn_itsc = 0
 
    endif
 
@@ -574,12 +569,12 @@ module qflxice
 !BOC
 !-----------------------------------------------------------------------
 !
-!  use only the first salinity term in the expansion
+!  call shr function to return freezing temp based on drv namelist
+!  choice of minus1p8, linear_salt, or mushy algorithms.
 !
 !-----------------------------------------------------------------------
 
-!   TFRZ(:,:) = -0.054_wp*SALT(:,:)
-   TFRZ(:,:) = -1.8_wp
+   TFRZ(:,:) = shr_frz_freezetemp(SALT(:,:))
 
 !-----------------------------------------------------------------------
 !EOC
